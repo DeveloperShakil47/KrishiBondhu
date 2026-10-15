@@ -38,10 +38,12 @@ else if (!demands.Any())
     <div class="kb-card text-center py-5">
         <i class="bi bi-journal-check fs-1 text-muted d-block mb-3"></i>
         <h5 class="fw-bold">বর্তমানে কোনো উন্মুক্ত চাহিদা নেই</h5>
-        <p class="text-muted small">ব্যবসায়ী হিসেবে প্রথম ফসলের চাহিদা প্রকাশ করতে পারেন।</p>
-        <button class="btn btn-kb-primary" @onclick="OpenCreateDemandModal">
-            <i class="bi bi-plus-circle me-1"></i> চাহিদা তৈরি করুন
-        </button>
+        @if (CurrentUser.Role == UserRole.Buyer || CurrentUser.Role == UserRole.Administrator)
+        {
+            <button class="btn btn-kb-primary" @onclick="OpenCreateDemandModal">
+                <i class="bi bi-plus-circle me-1"></i> চাহিদা তৈরি করুন
+            </button>
+        }
     </div>
 }
 else

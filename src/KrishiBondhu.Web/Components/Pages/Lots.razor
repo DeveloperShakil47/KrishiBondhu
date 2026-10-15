@@ -16,11 +16,15 @@
         <p class="text-muted small mb-0">কৃষকদের তালিকাভুক্ত তাজা ফসলের লট অন্বেষণ করুন এবং সরাসরি সেরা অফার দিন</p>
     </div>
 
-    <div>
-        <button class="btn btn-kb-primary" @onclick="OpenCreateLotModal">
-            <i class="bi bi-plus-lg me-1"></i> নতুন লট যুক্ত করুন
-        </button>
-    </div>
+    <AuthorizeView Roles="Farmer,Administrator">
+        <Authorized>
+            <div>
+                <button class="btn btn-kb-primary" @onclick="OpenCreateLotModal">
+                    <i class="bi bi-plus-lg me-1"></i> নতুন লট যুক্ত করুন
+                </button>
+            </div>
+        </Authorized>
+    </AuthorizeView>
 </div>
 
 <!-- Filters & Search Bar -->

@@ -1,5 +1,5 @@
 @page "/market-prices/entry"
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Administrator,SupportAgent,WeighingOperator")]
 @rendermode InteractiveServer
 @inject IMarketPriceService PriceService
 @inject ICropService CropService

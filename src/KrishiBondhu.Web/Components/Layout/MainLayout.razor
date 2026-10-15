@@ -35,15 +35,34 @@
                 <a class="kb-nav-link" href="demands">
                     <i class="bi bi-megaphone me-1"></i> @(Loc.CurrentLanguage == "bn" ? "ক্রেতার চাহিদা" : "Buyer Demands")
                 </a>
-                <a class="kb-nav-link" href="orders">
-                    <i class="bi bi-receipt me-1"></i> @(Loc.CurrentLanguage == "bn" ? "অর্ডার ও লেনদেন" : "Orders")
-                </a>
-                <a class="kb-nav-link" href="disputes">
-                    <i class="bi bi-shield-exclamation me-1"></i> @(Loc.CurrentLanguage == "bn" ? "বিরোধ নিষ্পত্তি" : "Disputes")
-                </a>
-                <a class="kb-nav-link" href="admin">
-                    <i class="bi bi-speedometer2 me-1"></i> @(Loc.CurrentLanguage == "bn" ? "প্রশাসন" : "Admin")
-                </a>
+                <AuthorizeView>
+                    <Authorized>
+                        <a class="kb-nav-link" href="orders">
+                            <i class="bi bi-receipt me-1"></i> @(Loc.CurrentLanguage == "bn" ? "অর্ডার ও লেনদেন" : "Orders")
+                        </a>
+                        <a class="kb-nav-link" href="disputes">
+                            <i class="bi bi-shield-exclamation me-1"></i> @(Loc.CurrentLanguage == "bn" ? "বিরোধ নিষ্পত্তি" : "Disputes")
+                        </a>
+                    </Authorized>
+                </AuthorizeView>
+
+                <!-- Support Staff & Admin Reviews -->
+                <AuthorizeView Roles="Administrator,SupportAgent">
+                    <Authorized>
+                        <a class="kb-nav-link" href="complaints/review">
+                            <i class="bi bi-shield-shaded me-1"></i> @(Loc.CurrentLanguage == "bn" ? "অভিযোগ তদন্ত" : "Review Complaints")
+                        </a>
+                    </Authorized>
+                </AuthorizeView>
+
+                <!-- Admin Console (Only Administrator) -->
+                <AuthorizeView Roles="Administrator">
+                    <Authorized>
+                        <a class="kb-nav-link" href="admin">
+                            <i class="bi bi-speedometer2 me-1"></i> @(Loc.CurrentLanguage == "bn" ? "প্রশাসন" : "Admin")
+                        </a>
+                    </Authorized>
+                </AuthorizeView>
             </nav>
 
             <!-- User / Auth / Language Controls -->
@@ -54,7 +73,7 @@
                     <span>@(Loc.CurrentLanguage == "bn" ? "English" : "বাংলা")</span>
                 </button>
 
-                <!-- Auth Buttons or Profile -->
+                <!-- Auth Buttons or Profile Dropdown -->
                 <AuthorizeView>
                     <Authorized>
                         <div class="dropdown">
@@ -62,41 +81,94 @@
                                 <i class="bi bi-person-circle text-success"></i>
                                 <span>@(context.User.Identity?.Name ?? "ব্যবহারকারী")</span>
                             </button>
-                            <ul class="dropdown-menu dropdown-menu-end shadow">
+                            <ul class="dropdown-menu dropdown-menu-end shadow" style="min-width: 240px; border-radius: 12px;">
                                 <li>
-                                    <div class="px-3 py-1 text-muted small">
-                                        ভূমিকা: <strong>@(context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value)</strong>
+                                    <div class="px-3 py-2 bg-light rounded-top border-bottom">
+                                        <div class="small text-secondary">লগইন ব্যবহারকারী: <strong>@(context.User.Identity?.Name)</strong></div>
+                                        <div class="mt-1">
+                                            <span class="badge bg-success text-white">
+                                                @(context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value)
+                                            </span>
+                                        </div>
                                     </div>
                                 </li>
-                                <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <a class="dropdown-item" href="dashboard">
-                                        <i class="bi bi-grid me-2"></i>ড্যাশবোর্ড (Dashboard)
+                                    <a class="dropdown-item py-2" href="dashboard">
+                                        <i class="bi bi-grid me-2 text-primary"></i>ড্যাশবোর্ড (Dashboard)
                                     </a>
                                 </li>
                                 <li>
-                                    <a class="dropdown-item" href="orders">
-                                        <i class="bi bi-receipt me-2"></i>আমার অর্ডার (My Orders)
+                                    <a class="dropdown-item py-2" href="orders">
+                                        <i class="bi bi-receipt me-2 text-secondary"></i>আমার অর্ডার (My Orders)
                                     </a>
                                 </li>
+
+                                <!-- Farmer Specific -->
+                                <AuthorizeView Roles="Farmer" Context="farmerCtx">
+                                    <Authorized>
+                                        <li>
+                                            <a class="dropdown-item py-2" href="lots">
+                                                <i class="bi bi-basket me-2 text-success"></i>আমার ফসলের লট (My Lots)
+                                            </a>
+                                        </li>
+                                    </Authorized>
+                                </AuthorizeView>
+
+                                <!-- Buyer Specific -->
+                                <AuthorizeView Roles="Buyer" Context="buyerCtx">
+                                    <Authorized>
+                                        <li>
+                                            <a class="dropdown-item py-2" href="demands">
+                                                <i class="bi bi-megaphone me-2 text-warning"></i>আমার চাহিদা পোস্ট (My Demands)
+                                            </a>
+                                        </li>
+                                    </Authorized>
+                                </AuthorizeView>
+
+                                <!-- Crops Directory -->
                                 <li>
-                                    <a class="dropdown-item" href="market-prices/entry">
-                                        <i class="bi bi-pencil-square me-2"></i>বাজারদর এন্ট্রি (Price Entry)
+                                    <a class="dropdown-item py-2" href="crops">
+                                        <i class="bi bi-flower1 me-2 text-success"></i>ফসলের ক্যাটালগ (Crops)
                                     </a>
                                 </li>
+
+                                <!-- SupportAgent & Administrator Officer Tools -->
+                                <AuthorizeView Roles="Administrator,SupportAgent" Context="staffCtx">
+                                    <Authorized>
+                                        <li><hr class="dropdown-divider my-1"></li>
+                                        <li>
+                                            <div class="dropdown-header small text-muted text-uppercase fw-bold pb-1" style="font-size: 0.72rem;">
+                                                কর্মকর্তা ও প্রশাসনিক টুলস
+                                            </div>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item py-2" href="market-prices/entry">
+                                                <i class="bi bi-pencil-square me-2 text-primary"></i>বাজারদর এন্ট্রি (Price Entry)
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item py-2" href="complaints/review">
+                                                <i class="bi bi-shield-check me-2 text-warning"></i>অভিযোগ পর্যালোচনা (Review Complaints)
+                                            </a>
+                                        </li>
+                                    </Authorized>
+                                </AuthorizeView>
+
+                                <!-- Administrator Only -->
+                                <AuthorizeView Roles="Administrator" Context="adminCtx">
+                                    <Authorized>
+                                        <li><hr class="dropdown-divider my-1"></li>
+                                        <li>
+                                            <a class="dropdown-item py-2 text-danger fw-semibold" href="admin">
+                                                <i class="bi bi-speedometer2 me-2"></i>এডমিন কনসোল (Admin Panel)
+                                            </a>
+                                        </li>
+                                    </Authorized>
+                                </AuthorizeView>
+
+                                <li><hr class="dropdown-divider my-1"></li>
                                 <li>
-                                    <a class="dropdown-item" href="crops">
-                                        <i class="bi bi-flower1 me-2 text-success"></i>ফসলের তালিকা ও নতুন ফসল (Crops)
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" href="complaints/review">
-                                        <i class="bi bi-shield-check me-2"></i>অভিযোগ পর্যালোচনা (Review Complaints)
-                                    </a>
-                                </li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <a class="dropdown-item text-danger" href="logout">
+                                    <a class="dropdown-item py-2 text-danger" href="logout">
                                         <i class="bi bi-box-arrow-right me-2"></i>লগআউট (Logout)
                                     </a>
                                 </li>
@@ -140,7 +212,7 @@
     </footer>
 </div>
 
-<div id="blazor-error-ui" data-nosnippet>
+<div id="blazor-error-ui" style="display: none;" data-nosnippet>
     একটি অপ্রত্যাশিত সমস্যা দেখা দিয়েছে।
     <a href="." class="reload">রিলোড করুন</a>
     <span class="dismiss">🗙</span>

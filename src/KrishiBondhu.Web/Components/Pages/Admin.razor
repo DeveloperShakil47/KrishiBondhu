@@ -1,4 +1,5 @@
 @page "/admin"
+@attribute [Authorize(Roles = "Administrator")]
 @inject IAuditLogRepository AuditRepo
 @inject IBuyerProfileRepository BuyerRepo
 @inject IFarmerProfileRepository FarmerRepo

@@ -94,6 +94,16 @@ public class UnitOfWork : IUnitOfWork
         {
             return;
         }
+
+        var strategy = _context.Database.CreateExecutionStrategy();
+        if (strategy.RetriesOnFailure)
+        {
+            // When NpgsqlRetryingExecutionStrategy is configured, standalone user-initiated BeginTransactionAsync
+            // outside strategy.ExecuteAsync is prohibited by EF Core.
+            // SaveChangesAsync inherently performs all tracked changes atomically.
+            return;
+        }
+
         _transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
     }
 
@@ -134,6 +144,47 @@ public class UnitOfWork : IUnitOfWork
                 _transaction = null;
             }
         }
+    }
+
+    public async Task<TResult> ExecuteInTransactionAsync<TResult>(Func<Task<TResult>> operation, CancellationToken cancellationToken = default)
+    {
+        var strategy = _context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                var result = await operation();
+                await _context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return result;
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+        });
+    }
+
+    public async Task ExecuteInTransactionAsync(Func<Task> operation, CancellationToken cancellationToken = default)
+    {
+        var strategy = _context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                await operation();
+                await _context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+        });
     }
 
     public void Dispose()

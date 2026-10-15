@@ -1,6 +1,48 @@
-﻿<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                @if (context.User.Identity?.IsAuthenticated == true)
+                {
+                    <div class="container py-5 text-center">
+                        <div class="card border-0 shadow-sm p-5 mx-auto" style="max-width: 550px; border-radius: 18px;">
+                            <div class="text-danger mb-3">
+                                <i class="bi bi-shield-lock-fill" style="font-size: 3.5rem;"></i>
+                            </div>
+                            <h3 class="fw-bold text-dark">অননুমোদিত প্রবেশাধিকার (Access Denied)</h3>
+                            <p class="text-muted mt-2">
+                                দুঃখিত, আপনার বর্তমান ভূমিকা (<strong>@(context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value)</strong>) এই পৃষ্ঠায় প্রবেশের জন্য অনুমোদিত নয়।
+                            </p>
+                            <div class="d-flex justify-content-center gap-2 mt-3">
+                                <a href="dashboard" class="btn btn-success fw-semibold px-4 rounded-pill">ড্যাশবোর্ডে ফিরুন</a>
+                                <a href="" class="btn btn-outline-secondary px-4 rounded-pill">হোমে যান</a>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="container py-5 text-center">
+                        <div class="card border-0 shadow-sm p-5 mx-auto" style="max-width: 500px; border-radius: 18px;">
+                            <div class="text-warning mb-3">
+                                <i class="bi bi-person-lock" style="font-size: 3.5rem;"></i>
+                            </div>
+                            <h3 class="fw-bold text-dark">লগইন আবশ্যক</h3>
+                            <p class="text-muted mt-2">এই পেজটিতে প্রবেশের জন্য অনুগ্রহ করে প্রথমে আপনার একাউন্টে লগইন করুন।</p>
+                            <div class="mt-3">
+                                <a href="login" class="btn btn-success fw-bold px-4 py-2 rounded-pill shadow-sm">লগইন পেজে যান</a>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </NotAuthorized>
+            <Authorizing>
+                <div class="text-center py-5">
+                    <div class="spinner-border text-success" role="status"></div>
+                    <p class="text-muted mt-2">অনুমোদন যাচাই করা হচ্ছে...</p>
+                </div>
+            </Authorizing>
+        </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>
