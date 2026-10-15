@@ -62,13 +62,31 @@
                     <label class="form-label fw-bold text-secondary small">
                         <i class="bi bi-geo-alt me-1 text-danger"></i> জেলা
                     </label>
-                    <select class="form-select" @bind="selectedDistrict" @bind:after="OnFilterChanged">
+                    <select class="form-select" value="@selectedDistrict" @onchange="OnDistrictChanged">
                         <option value="">সকল জেলা (সারাদেশ)</option>
-                        <option value="ঢাকা (Dhaka)">ঢাকা</option>
-                        <option value="বগুড়া (Bogura)">বগুড়া</option>
-                        <option value="চট্টগ্রাম (Chattogram)">চট্টগ্রাম</option>
-                        <option value="রাজশাহী (Rajshahi)">রাজশাহী</option>
-                        <option value="যশোর (Jashore)">যশোর</option>
+                        @foreach (var divisionGroup in BangladeshLocationData.Districts.GroupBy(d => d.DivisionBn))
+                        {
+                            <optgroup label="@($"{divisionGroup.Key} বিভাগ ({divisionGroup.First().DivisionEn} Division)")">
+                                @foreach (var dist in divisionGroup.OrderBy(d => d.NameBn))
+                                {
+                                    <option value="@dist.DisplayName">@dist.DisplayName</option>
+                                }
+                            </optgroup>
+                        }
+                    </select>
+                </div>
+
+                <!-- Upazila Filter -->
+                <div class="col-md-2">
+                    <label class="form-label fw-bold text-secondary small">
+                        <i class="bi bi-geo me-1 text-warning"></i> উপজেলা
+                    </label>
+                    <select class="form-select" value="@selectedUpazila" @onchange="OnUpazilaChanged" disabled="@(districtUpazilas.Count == 0)">
+                        <option value="">সকল উপজেলা</option>
+                        @foreach (var u in districtUpazilas)
+                        {
+                            <option value="@u">@u</option>
+                        }
                     </select>
                 </div>
 
@@ -85,7 +103,7 @@
                 </div>
 
                 <!-- Date Filter -->
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label fw-bold text-secondary small">
                         <i class="bi bi-calendar3 me-1 text-info"></i> পর্যবেক্ষণের তারিখ
                     </label>
@@ -93,9 +111,9 @@
                 </div>
 
                 <!-- Reset Button -->
-                <div class="col-md-2">
-                    <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-1" @onclick="ResetFilters">
-                        <i class="bi bi-arrow-counterclockwise"></i> রিসেট ফিল্টার
+                <div class="col-md-1 d-flex align-items-end">
+                    <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center p-2" title="রিসেট ফিল্টার" @onclick="ResetFilters">
+                        <i class="bi bi-arrow-counterclockwise"></i>
                     </button>
                 </div>
             </div>
@@ -574,6 +592,8 @@
     private IReadOnlyList<CropDto> crops = new List<CropDto>();
     private Guid selectedCropId;
     private string selectedDistrict = string.Empty;
+    private string selectedUpazila = string.Empty;
+    private IReadOnlyList<string> districtUpazilas = Array.Empty<string>();
     private MarketType? selectedMarketType;
     private DateTime selectedDate = DateTime.Today;
 
@@ -600,9 +620,25 @@
         await LoadDataAsync();
     }
 
+    private async Task OnDistrictChanged(ChangeEventArgs e)
+    {
+        selectedDistrict = e.Value?.ToString() ?? "";
+        districtUpazilas = BangladeshLocationData.GetUpazilasForDistrict(selectedDistrict);
+        selectedUpazila = string.Empty;
+        await LoadDataAsync();
+    }
+
+    private async Task OnUpazilaChanged(ChangeEventArgs e)
+    {
+        selectedUpazila = e.Value?.ToString() ?? "";
+        await LoadDataAsync();
+    }
+
     private async Task ResetFilters()
     {
         selectedDistrict = string.Empty;
+        selectedUpazila = string.Empty;
+        districtUpazilas = Array.Empty<string>();
         selectedMarketType = null;
         selectedDate = DateTime.Today;
         await LoadDataAsync();
@@ -625,6 +661,7 @@
             {
                 CropId = selectedCropId,
                 District = string.IsNullOrWhiteSpace(selectedDistrict) ? null : selectedDistrict,
+                Upazila = string.IsNullOrWhiteSpace(selectedUpazila) ? null : selectedUpazila,
                 MarketType = selectedMarketType,
                 Date = selectedDate,
                 PageNumber = 1,

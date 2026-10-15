@@ -51,6 +51,7 @@ public class DbInitializer
             await SeedCropsAsync();
             await SeedSampleDataAsync();
             await SeedMarketIntelligenceAsync();
+            await EnsureRegionalMarketsAsync();
         }
         catch (Exception ex)
         {
@@ -737,6 +738,80 @@ public class DbInitializer
             };
 
             await _context.ConsumerComplaints.AddAsync(sampleComplaint);
+            await _context.SaveChangesAsync();
+        }
+    }
+
+    private async Task EnsureRegionalMarketsAsync()
+    {
+        var regionalMarkets = new List<Market>
+        {
+            // Dhaka
+            new() { MarketCode = "MKT-DHK-001", NameBn = "কারওয়ান বাজার পাইকারি ও খুচরা আড়ত", NameEn = "Kawran Bazar Wholesale Hub", MarketType = MarketType.Both, District = "ঢাকা (Dhaka)", Upazila = "তেজগাঁও (Tejgaon)", AddressDetails = "কারওয়ান বাজার মোড়, ঢাকা", IsActive = true },
+            new() { MarketCode = "MKT-DHK-004", NameBn = "বাদামতলী ফল ও পাইকারি আড়ত", NameEn = "Badamtoli Wholesale Market", MarketType = MarketType.Wholesale, District = "ঢাকা (Dhaka)", Upazila = "কোতোয়ালী (Kotwali)", AddressDetails = "বুড়িগঙ্গা নদী তীরবর্তী বাদামতলী ঘাট", IsActive = true },
+            new() { MarketCode = "MKT-DHK-015", NameBn = "শ্যামবাজার পাইকারি মসলা ও পেঁয়াজ আড়ত", NameEn = "Shyambazar Wholesale Spice & Onion Market", MarketType = MarketType.Wholesale, District = "ঢাকা (Dhaka)", Upazila = "কোতোয়ালী (Kotwali)", AddressDetails = "শ্যামবাজার, সদরঘাট, ঢাকা", IsActive = true },
+            new() { MarketCode = "MKT-DHK-016", NameBn = "যাত্রাবাড়ী পাইকারি কাঁচাবাজার", NameEn = "Jatrabari Wholesale Vegetable Market", MarketType = MarketType.Both, District = "ঢাকা (Dhaka)", Upazila = "যাত্রাবাড়ী (Jatrabari)", AddressDetails = "যাত্রাবাড়ী চৌরাস্তা সংলগ্ন, ঢাকা", IsActive = true },
+
+            // Bogura
+            new() { MarketCode = "MKT-BOG-002", NameBn = "মহাস্থান হাট (বৃহত্তম কৃষিপণ্য মোকাম)", NameEn = "Mahasthan Hat Agricultural Trading Center", MarketType = MarketType.Wholesale, District = "বগুড়া (Bogura)", Upazila = "শিবগঞ্জ (Shibganj)", AddressDetails = "ঢাকা-রংপুর মহাসড়ক সংলগ্ন, মহাস্থানগড়, শিবগঞ্জ", IsActive = true },
+            new() { MarketCode = "MKT-BOG-007", NameBn = "রাজা বাজার পাইকারি কাঁচাবাজার", NameEn = "Raja Bazar Bogura Wholesale Market", MarketType = MarketType.Both, District = "বগুড়া (Bogura)", Upazila = "বগুড়া সদর (Bogura Sadar)", AddressDetails = "বগুড়া শহর কেন্দ্র, রাজা বাজার", IsActive = true },
+            new() { MarketCode = "MKT-BOG-008", NameBn = "শেরপুর বাসস্ট্যান্ড কাঁচামাল আড়ত", NameEn = "Sherpur Wholesalers Market", MarketType = MarketType.Wholesale, District = "বগুড়া (Bogura)", Upazila = "শেরপুর (Sherpur)", AddressDetails = "শেরপুর বাসস্ট্যান্ড সংলগ্ন", IsActive = true },
+            new() { MarketCode = "MKT-BOG-009", NameBn = "সান্তাহার পাইকারি খাদ্যশস্য মোকাম", NameEn = "Santahar Grain Mokam", MarketType = MarketType.Wholesale, District = "বগুড়া (Bogura)", Upazila = "আদমদীঘি (Adamdighi)", AddressDetails = "সান্তাহার রেলওয়ে জংশন এলাকা", IsActive = true },
+
+            // Rangpur
+            new() { MarketCode = "MKT-RNG-010", NameBn = "রংপুর সিটি কাঁচাবাজার ও আড়ত", NameEn = "Rangpur City Wholesale Market", MarketType = MarketType.Both, District = "রংপুর (Rangpur)", Upazila = "রংপুর সদর (Rangpur Sadar)", AddressDetails = "সদর রোড, রংপুর", IsActive = true },
+            new() { MarketCode = "MKT-RNG-011", NameBn = "মিঠাপুকুর প্রধান হাট মোকাম", NameEn = "Mithapukur Wholesale Hat", MarketType = MarketType.Wholesale, District = "রংপুর (Rangpur)", Upazila = "মিঠাপুকুর (Mithapukur)", AddressDetails = "মিঠাপুকুর বাজার", IsActive = true },
+
+            // Dinajpur
+            new() { MarketCode = "MKT-DIN-012", NameBn = "বাহাদুর বাজার পাইকারি কাঁচামাল মোকাম", NameEn = "Bahadur Bazar Dinajpur", MarketType = MarketType.Both, District = "দিনাজপুর (Dinajpur)", Upazila = "দিনাজপুর সদর (Dinajpur Sadar)", AddressDetails = "বাহাদুর বাজার, দিনাজপুর", IsActive = true },
+            new() { MarketCode = "MKT-DIN-013", NameBn = "পুলহাট ধান ও চালের বৃহত্তম আড়ত", NameEn = "Pulhat Rice & Paddy Hub", MarketType = MarketType.Wholesale, District = "দিনাজপুর (Dinajpur)", Upazila = "দিনাজপুর সদর (Dinajpur Sadar)", AddressDetails = "পুলহাট, দিনাজপুর", IsActive = true },
+
+            // Rajshahi
+            new() { MarketCode = "MKT-RAJ-005", NameBn = "রাজশাহী সাহেব বাজার কাঁচাবাজার", NameEn = "Rajshahi Shaheb Bazar Local Market", MarketType = MarketType.Retail, District = "রাজশাহী (Rajshahi)", Upazila = "বোয়ালিয়া (Boalia)", AddressDetails = "সাহেব বাজার জিরো পয়েন্ট, রাজশাহী", IsActive = true },
+            new() { MarketCode = "MKT-RAJ-014", NameBn = "বানেশ্বর হাট (বৃহত্তম আম ও কাঁচাপণ্য মোকাম)", NameEn = "Baneswar Hat Trading Hub", MarketType = MarketType.Wholesale, District = "রাজশাহী (Rajshahi)", Upazila = "পুঠিয়া (Puthia)", AddressDetails = "ঢাকা-রাজশাহী মহাসড়ক, বানেশ্বর, পুঠিয়া", IsActive = true },
+
+            // Chattogram
+            new() { MarketCode = "MKT-CTG-003", NameBn = "খাতুনগঞ্জ পাইকারি মোকাম", NameEn = "Khatunganj Commodity Market", MarketType = MarketType.Wholesale, District = "চট্টগ্রাম (Chattogram)", Upazila = "কোতোয়ালী (Kotwali)", AddressDetails = "খাতুনগঞ্জ বাণিজ্যিক এলাকা, চাক্তাই, চট্টগ্রাম", IsActive = true },
+            new() { MarketCode = "MKT-CTG-028", NameBn = "রিয়াজউদ্দিন বাজার পাইকারি কাঁচামাল আড়ত", NameEn = "Reazuddin Bazar Wholesalers", MarketType = MarketType.Both, District = "চট্টগ্রাম (Chattogram)", Upazila = "কোতোয়ালী (Kotwali)", AddressDetails = "স্টেশন রোড, চট্টগ্রাম", IsActive = true },
+
+            // Cumilla
+            new() { MarketCode = "MKT-CUM-017", NameBn = "নিমসার কাঁচাবাজার পাইকারি মোকাম", NameEn = "Nimshar Wholesale Vegetable Market", MarketType = MarketType.Wholesale, District = "কুমিল্লা (Cumilla)", Upazila = "বুড়িচং (Burichang)", AddressDetails = "ঢাকা-চট্টগ্রাম মহাসড়ক সংলগ্ন নিমসার বাজার", IsActive = true },
+            new() { MarketCode = "MKT-CUM-018", NameBn = "চকবাজার পাইকারি কৃষিপণ্য আড়ত", NameEn = "Chawkbazar Cumilla Wholesalers", MarketType = MarketType.Both, District = "কুমিল্লা (Cumilla)", Upazila = "কুমিল্লা আদর্শ সদর (Cumilla Sadar)", AddressDetails = "চকবাজার, কুমিল্লা", IsActive = true },
+
+            // Mymensingh
+            new() { MarketCode = "MKT-MYM-019", NameBn = "মেছুয়া বাজার পাইকারি আড়ত", NameEn = "Mechua Bazar Mymensingh", MarketType = MarketType.Both, District = "ময়মনসিংহ (Mymensingh)", Upazila = "ময়মনসিংহ সদর (Mymensingh Sadar)", AddressDetails = "মেছুয়া বাজার, ময়মনসিংহ", IsActive = true },
+            new() { MarketCode = "MKT-MYM-020", NameBn = "শম্ভুগঞ্জ বাজার মোকাম", NameEn = "Shambhuganj Mokam", MarketType = MarketType.Wholesale, District = "ময়মনসিংহ (Mymensingh)", Upazila = "ময়মনসিংহ সদর (Mymensingh Sadar)", AddressDetails = "শম্ভুগঞ্জ ব্রিজ সংলগ্ন", IsActive = true },
+
+            // Jashore
+            new() { MarketCode = "MKT-JAS-006", NameBn = "যশোর বড় বাজার মোকাম", NameEn = "Jashore Boro Bazar Commercial Hub", MarketType = MarketType.Both, District = "যশোর (Jashore)", Upazila = "কোতোয়ালী (Kotwali)", AddressDetails = "বড় বাজার রোড, যশোর", IsActive = true },
+
+            // Kushtia
+            new() { MarketCode = "MKT-KUS-024", NameBn = "কুষ্টিয়া পৌর পাইকারি বাজার", NameEn = "Kushtia Poura Wholesale Market", MarketType = MarketType.Both, District = "কুষ্টিয়া (Kushtia)", Upazila = "কুষ্টিয়া সদর (Kushtia Sadar)", AddressDetails = "পৌর কাঁচাবাজার, কুষ্টিয়া", IsActive = true },
+
+            // Pabna
+            new() { MarketCode = "MKT-PAB-025", NameBn = "কাশীনাথপুর পাইকারি হাট ও মোকাম", NameEn = "Kashinathpur Wholesale Hat", MarketType = MarketType.Wholesale, District = "পাবনা (Pabna)", Upazila = "সাঁথিয়া (Santhia)", AddressDetails = "কাশীনাথপুর মোড়, সাঁথিয়া, পাবনা", IsActive = true },
+
+            // Sirajganj
+            new() { MarketCode = "MKT-SIR-026", NameBn = "উল্লাপাড়া সরিষা ও খাদ্যশস্য মোকাম", NameEn = "Ullapara Mustard & Grain Mokam", MarketType = MarketType.Wholesale, District = "সিরাজগঞ্জ (Sirajganj)", Upazila = "উল্লাপাড়া (Ullapara)", AddressDetails = "উল্লাপাড়া হাটখোলা", IsActive = true },
+
+            // Sylhet
+            new() { MarketCode = "MKT-SYL-021", NameBn = "কাজীর বাজার পাইকারি আড়ত", NameEn = "Kazir Bazar Sylhet", MarketType = MarketType.Both, District = "সিলেট (Sylhet)", Upazila = "সিলেট সদর (Sylhet Sadar)", AddressDetails = "কাজীর বাজার, সুরমা নদীর পাড়, সিলেট", IsActive = true },
+
+            // Barishal
+            new() { MarketCode = "MKT-BAR-023", NameBn = "পোর্ট রোড পাইকারি কাঁচাবাজার মোকাম", NameEn = "Port Road Wholesale Market", MarketType = MarketType.Wholesale, District = "বরিশাল (Barishal)", Upazila = "বরিশাল সদর (Barishal Sadar)", AddressDetails = "পোর্ট রোড, কীর্তনখোলা নদীর তীর, বরিশাল", IsActive = true }
+        };
+
+        bool hasNew = false;
+        foreach (var mkt in regionalMarkets)
+        {
+            if (!await _context.Markets.AnyAsync(m => m.MarketCode == mkt.MarketCode))
+            {
+                await _context.Markets.AddAsync(mkt);
+                hasNew = true;
+            }
+        }
+        if (hasNew)
+        {
             await _context.SaveChangesAsync();
         }
     }

@@ -143,7 +143,7 @@ public class ConsumerComplaintService : IConsumerComplaintService
             ActualPriceCharged = dto.ActualPriceCharged,
             NormalizedPricePerUnit = normalizedPrice,
             StandardUnit = baseUnit,
-            PurchaseDateTime = dto.PurchaseDateTime,
+            PurchaseDateTime = DateTime.SpecifyKind(dto.PurchaseDateTime, DateTimeKind.Utc),
             Description = dto.Description,
             ReceiptEvidencePath = dto.ReceiptEvidencePath,
             ReceiptFileName = dto.ReceiptFileName,

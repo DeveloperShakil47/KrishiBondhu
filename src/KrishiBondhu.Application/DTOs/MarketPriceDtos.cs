@@ -175,3 +175,23 @@ public class PriceTrendPointDto
     public decimal? HighestObservedPrice { get; set; }
     public int TotalObservations { get; set; }
 }
+
+public class CreateMarketDto
+{
+    [Required(ErrorMessage = "বাজারের বাংলা নাম আবশ্যক")]
+    [MaxLength(150, ErrorMessage = "বাজারের নাম ১৫০ অক্ষরের মধ্যে হতে হবে")]
+    public string NameBn { get; set; } = string.Empty;
+
+    [MaxLength(150, ErrorMessage = "ইংরেজি নাম ১৫০ অক্ষরের মধ্যে হতে হবে")]
+    public string NameEn { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "জেলা নির্বাচন করুন")]
+    public string District { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "উপজেলা নির্বাচন করুন")]
+    public string Upazila { get; set; } = string.Empty;
+
+    public MarketType MarketType { get; set; } = MarketType.Both;
+
+    public string? AddressDetails { get; set; }
+}

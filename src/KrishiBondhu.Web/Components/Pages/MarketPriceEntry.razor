@@ -8,7 +8,7 @@
 
 <PageTitle>বাজারদর পর্যবেক্ষণ এন্ট্রি — কৃষিবন্ধু</PageTitle>
 
-<div class="container py-4" style="max-width: 850px;">
+<div class="container py-4" style="max-width: 900px;">
     <!-- Breadcrumb & Back -->
     <div class="mb-3">
         <a href="market-prices" class="text-decoration-none text-success fw-semibold">
@@ -56,9 +56,14 @@
                     <DataAnnotationsValidator />
 
                     <div class="row g-3">
-                        <!-- Crop Selection -->
+                        <!-- Crop Selection & Quick Add Crop -->
                         <div class="col-md-6">
-                            <label class="form-label fw-bold small">পণ্য / ফসল <span class="text-danger">*</span></label>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label fw-bold small mb-0">পণ্য / ফসল <span class="text-danger">*</span></label>
+                                <button type="button" class="btn btn-sm btn-link text-success p-0 text-decoration-none fw-semibold" @onclick="() => showQuickAddCropModal = true">
+                                    <i class="bi bi-plus-circle me-1"></i>+ নতুন ফসল যুক্ত করুন
+                                </button>
+                            </div>
                             <select class="form-select border-success" @bind="model.CropId" @bind:after="UpdateNormalizedPreview">
                                 <option value="@Guid.Empty">-- ফসল নির্বাচন করুন --</option>
                                 @foreach (var c in crops)
@@ -69,37 +74,8 @@
                             <ValidationMessage For="() => model.CropId" class="text-danger small" />
                         </div>
 
-                        <!-- Market Selection -->
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold small">বাজার / আড়ত <span class="text-danger">*</span></label>
-                            <select class="form-select" @bind="model.MarketId">
-                                <option value="@Guid.Empty">-- বাজার নির্বাচন করুন --</option>
-                                @foreach (var m in markets)
-                                {
-                                    <option value="@m.Id">@m.NameBn (@m.District, @m.Upazila)</option>
-                                }
-                            </select>
-                            <ValidationMessage For="() => model.MarketId" class="text-danger small" />
-                        </div>
-
-                        <!-- Market Type -->
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold small">বাজারের ধরন <span class="text-danger">*</span></label>
-                            <select class="form-select" @bind="model.MarketType">
-                                <option value="@MarketType.Wholesale">পাইকারি বাজার (Wholesale)</option>
-                                <option value="@MarketType.Retail">খুচরা বাজার (Retail)</option>
-                            </select>
-                        </div>
-
-                        <!-- Observation Date -->
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold small">পর্যবেক্ষণের তারিখ <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" @bind="model.ObservationDate" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
-                            <ValidationMessage For="() => model.ObservationDate" class="text-danger small" />
-                        </div>
-
                         <!-- Data Source -->
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <label class="form-label fw-bold small">তথ্যের উৎস <span class="text-danger">*</span></label>
                             <select class="form-select" @bind="model.PriceSourceId">
                                 <option value="@Guid.Empty">-- উৎস নির্বাচন করুন --</option>
@@ -109,6 +85,85 @@
                                 }
                             </select>
                             <ValidationMessage For="() => model.PriceSourceId" class="text-danger small" />
+                        </div>
+
+                        <!-- Location & Market Section -->
+                        <div class="col-12 pt-2">
+                            <div class="p-3 bg-light rounded-3 border">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fw-bold small text-dark">
+                                        <i class="bi bi-geo-alt-fill text-danger me-1"></i> বাজার ও ভৌগোলিক অবস্থান নির্বাচন (৬৪ জেলা ও সকল উপজেলা)
+                                    </span>
+                                    <button type="button" class="btn btn-sm btn-outline-success fw-semibold" @onclick="OpenAddMarketModal">
+                                        <i class="bi bi-plus-circle-fill me-1"></i>+ নতুন বাজার / মোকাম যুক্ত করুন
+                                    </button>
+                                </div>
+                                <div class="row g-2">
+                                    <!-- District Dropdown -->
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-semibold text-muted">জেলা</label>
+                                        <select class="form-select" value="@selectedDistrict" @onchange="OnDistrictChanged">
+                                            <option value="">-- সকল জেলা (সারাদেশ) --</option>
+                                            @foreach (var divisionGroup in BangladeshLocationData.Districts.GroupBy(d => d.DivisionBn))
+                                            {
+                                                <optgroup label="@($"{divisionGroup.Key} বিভাগ ({divisionGroup.First().DivisionEn} Division)")">
+                                                    @foreach (var dist in divisionGroup.OrderBy(d => d.NameBn))
+                                                    {
+                                                        <option value="@dist.DisplayName">@dist.DisplayName</option>
+                                                    }
+                                                </optgroup>
+                                            }
+                                        </select>
+                                    </div>
+
+                                    <!-- Upazila Dropdown -->
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-semibold text-muted">উপজেলা / থানা</label>
+                                        <select class="form-select" value="@selectedUpazila" @onchange="OnUpazilaChanged" disabled="@(districtUpazilas.Count == 0)">
+                                            <option value="">-- উপজেলার সকল মোকাম --</option>
+                                            @foreach (var u in districtUpazilas)
+                                            {
+                                                <option value="@u">@u</option>
+                                            }
+                                        </select>
+                                    </div>
+
+                                    <!-- Market Dropdown -->
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-semibold text-muted">বাজার / আড়ত <span class="text-danger">*</span></label>
+                                        <select class="form-select border-primary" @bind="model.MarketId">
+                                            <option value="@Guid.Empty">-- বাজার নির্বাচন করুন --</option>
+                                            @foreach (var m in FilteredMarkets)
+                                            {
+                                                <option value="@m.Id">@m.NameBn (@m.District, @m.Upazila)</option>
+                                            }
+                                        </select>
+                                        <ValidationMessage For="() => model.MarketId" class="text-danger small" />
+                                    </div>
+                                </div>
+                                @if (!FilteredMarkets.Any())
+                                {
+                                    <div class="small text-muted mt-2">
+                                        <i class="bi bi-info-circle me-1"></i> এই এলাকায় কোনো বাজার তালিকাভুক্ত নেই। উপরে <strong>"+ নতুন বাজার / মোকাম যুক্ত করুন"</strong> বাটনে ক্লিক করে সহজে যুক্ত করুন।
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <!-- Market Type -->
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small">বাজারের ধরন <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="model.MarketType">
+                                <option value="@MarketType.Wholesale">পাইকারি বাজার (Wholesale)</option>
+                                <option value="@MarketType.Retail">খুচরা বাজার (Retail)</option>
+                            </select>
+                        </div>
+
+                        <!-- Observation Date -->
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small">পর্যবেক্ষণের তারিখ <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" @bind="model.ObservationDate" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                            <ValidationMessage For="() => model.ObservationDate" class="text-danger small" />
                         </div>
 
                         <!-- Observation Quantity & Unit -->
@@ -214,6 +269,171 @@
     </div>
 </div>
 
+<!-- Modal: Quick Add Crop -->
+@if (showQuickAddCropModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.6); z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow" style="border-radius: 16px;">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-dark">
+                        <i class="bi bi-flower1 text-success me-2"></i>নতুন ফসল যুক্ত করুন
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => showQuickAddCropModal = false"></button>
+                </div>
+                <div class="modal-body p-4">
+                    @if (!string.IsNullOrEmpty(quickCropErrorMessage))
+                    {
+                        <div class="alert alert-danger py-2 small mb-3">
+                            <i class="bi bi-exclamation-circle me-1"></i> @quickCropErrorMessage
+                        </div>
+                    }
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label small fw-bold">ফসলের বাংলা নাম <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" placeholder="যেমন: ড্রাগন ফল / পেঁপে / শসা" @bind="quickCropModel.NameBn" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">ইমোজি</label>
+                            <input type="text" class="form-control text-center fs-5" placeholder="🌱" @bind="quickCropModel.IconEmoji" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">ক্যাটাগরি</label>
+                            <select class="form-select" @bind="quickCropModel.Category">
+                                <option value="শাকসবজি (Vegetables)">শাকসবজি (Vegetables)</option>
+                                <option value="খাদ্যশস্য (Cereals)">খাদ্যশস্য (Cereals)</option>
+                                <option value="ফলমূল (Fruits)">ফলমূল (Fruits)</option>
+                                <option value="ডাল (Pulses)">ডাল (Pulses)</option>
+                                <option value="মসলা (Spices)">মসলা (Spices)</option>
+                                <option value="তৈলবীজ (Oilseeds)">তৈলবীজ (Oilseeds)</option>
+                                <option value="অর্থকরী ফসল (Cash Crops)">অর্থকরী ফসল (Cash Crops)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">স্ট্যান্ডার্ড একক</label>
+                            <select class="form-select" @bind="quickCropModel.StandardUnit">
+                                <option value="কেজি">কেজি (Kg)</option>
+                                <option value="মণ">মণ (Mon = 40 Kg)</option>
+                                <option value="লিটার">লিটার (Litre)</option>
+                                <option value="টি">টি / পিস (Piece)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="() => showQuickAddCropModal = false">বাতিল</button>
+                        <button type="button" class="btn btn-success fw-bold px-4" @onclick="HandleQuickAddCrop" disabled="@isSubmittingQuickCrop">
+                            @if (isSubmittingQuickCrop)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                <span>সংরক্ষণ হচ্ছে...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-check-circle me-1"></i>
+                                <span>ফসল যুক্ত করুন</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal: Quick Add Market -->
+@if (showAddMarketModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.6); z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow" style="border-radius: 16px;">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-dark">
+                        <i class="bi bi-shop text-primary me-2"></i>নতুন বাজার / মোকাম যুক্ত করুন
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => showAddMarketModal = false"></button>
+                </div>
+                <div class="modal-body p-4">
+                    @if (!string.IsNullOrEmpty(marketModalError))
+                    {
+                        <div class="alert alert-danger py-2 small mb-3">
+                            <i class="bi bi-exclamation-circle me-1"></i> @marketModalError
+                        </div>
+                    }
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label class="form-label small fw-bold">বাজার বা মোকামের নাম (বাংলা) <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" placeholder="যেমন: শেরপুর কাঁচাবাজার / সান্তাহার মোকাম" @bind="newMarketModel.NameBn" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold text-muted">ইংরেজি নাম (ঐচ্ছিক)</label>
+                            <input type="text" class="form-control" placeholder="e.g. Sherpur Vegetable Market" @bind="newMarketModel.NameEn" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">বাজারের ধরন</label>
+                            <select class="form-select" @bind="newMarketModel.MarketType">
+                                <option value="@MarketType.Both">উভয় (পাইকারি ও খুচরা)</option>
+                                <option value="@MarketType.Wholesale">পাইকারি আড়ত / মোকাম</option>
+                                <option value="@MarketType.Retail">খুচরা বাজার</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">জেলা <span class="text-danger">*</span></label>
+                            <select class="form-select" value="@newMarketModel.District" @onchange="OnModalMarketDistrictChanged">
+                                <option value="">-- জেলা নির্বাচন করুন --</option>
+                                @foreach (var divisionGroup in BangladeshLocationData.Districts.GroupBy(d => d.DivisionBn))
+                                {
+                                    <optgroup label="@($"{divisionGroup.Key} বিভাগ ({divisionGroup.First().DivisionEn} Division)")">
+                                        @foreach (var dist in divisionGroup.OrderBy(d => d.NameBn))
+                                        {
+                                            <option value="@dist.DisplayName">@dist.DisplayName</option>
+                                        }
+                                    </optgroup>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">উপজেলা <span class="text-danger">*</span></label>
+                            @if (modalMarketUpazilas.Count > 0)
+                            {
+                                <select class="form-select" @bind="newMarketModel.Upazila">
+                                    <option value="">-- উপজেলা নির্বাচন করুন --</option>
+                                    @foreach (var u in modalMarketUpazilas)
+                                    {
+                                        <option value="@u">@u</option>
+                                    }
+                                </select>
+                            }
+                            else
+                            {
+                                <input type="text" class="form-control" placeholder="উপজেলা লিখুন" @bind="newMarketModel.Upazila" />
+                            }
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label small text-muted">নির্দিষ্ট অবস্থান বা ঠিকানা (ঐচ্ছিক)</label>
+                            <input type="text" class="form-control" placeholder="যেমন: বাসস্ট্যান্ড সংলগ্ন, থানা রোড" @bind="newMarketModel.AddressDetails" />
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="() => showAddMarketModal = false">বাতিল</button>
+                        <button type="button" class="btn btn-primary fw-bold px-4" @onclick="HandleAddMarket" disabled="@isSubmittingMarket">
+                            @if (isSubmittingMarket)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                <span>সংরক্ষণ হচ্ছে...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-check-circle me-1"></i>
+                                <span>বাজার সংরক্ষণ করুন</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private CreateMarketPriceObservationDto model = new()
     {
@@ -227,12 +447,48 @@
     private IReadOnlyList<MarketDto> markets = new List<MarketDto>();
     private IReadOnlyList<PriceSourceDto> sources = new List<PriceSourceDto>();
 
+    private string selectedDistrict = string.Empty;
+    private string selectedUpazila = string.Empty;
+    private IReadOnlyList<string> districtUpazilas = Array.Empty<string>();
+
     private decimal previewNormalizedPrice = 0m;
     private string previewBaseUnit = "কেজি";
 
     private bool isSubmitting = false;
     private bool isSuccess = false;
     private string? errorMessage;
+
+    // Quick Crop Modal
+    private bool showQuickAddCropModal = false;
+    private bool isSubmittingQuickCrop = false;
+    private string? quickCropErrorMessage;
+    private CreateCropDto quickCropModel = new();
+
+    // Quick Market Modal
+    private bool showAddMarketModal = false;
+    private bool isSubmittingMarket = false;
+    private string? marketModalError;
+    private CreateMarketDto newMarketModel = new();
+    private IReadOnlyList<string> modalMarketUpazilas = Array.Empty<string>();
+
+    private IEnumerable<MarketDto> FilteredMarkets
+    {
+        get
+        {
+            var list = markets.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(selectedDistrict))
+            {
+                list = list.Where(m => m.District.Contains(selectedDistrict, StringComparison.OrdinalIgnoreCase) ||
+                                       selectedDistrict.Contains(m.District, StringComparison.OrdinalIgnoreCase));
+            }
+            if (!string.IsNullOrWhiteSpace(selectedUpazila))
+            {
+                list = list.Where(m => m.Upazila.Contains(selectedUpazila, StringComparison.OrdinalIgnoreCase) ||
+                                       selectedUpazila.Contains(m.Upazila, StringComparison.OrdinalIgnoreCase));
+            }
+            return list;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -245,6 +501,140 @@
         if (sources.Any()) model.PriceSourceId = sources.First().Id;
 
         UpdateNormalizedPreview();
+    }
+
+    private void OnDistrictChanged(ChangeEventArgs e)
+    {
+        selectedDistrict = e.Value?.ToString() ?? "";
+        districtUpazilas = BangladeshLocationData.GetUpazilasForDistrict(selectedDistrict);
+        selectedUpazila = "";
+
+        var firstMarket = FilteredMarkets.FirstOrDefault();
+        if (firstMarket != null)
+        {
+            model.MarketId = firstMarket.Id;
+        }
+    }
+
+    private void OnUpazilaChanged(ChangeEventArgs e)
+    {
+        selectedUpazila = e.Value?.ToString() ?? "";
+        var firstMarket = FilteredMarkets.FirstOrDefault();
+        if (firstMarket != null)
+        {
+            model.MarketId = firstMarket.Id;
+        }
+    }
+
+    private void OpenAddMarketModal()
+    {
+        newMarketModel = new CreateMarketDto
+        {
+            District = selectedDistrict,
+            Upazila = selectedUpazila,
+            MarketType = model.MarketType
+        };
+        modalMarketUpazilas = BangladeshLocationData.GetUpazilasForDistrict(newMarketModel.District);
+        marketModalError = null;
+        showAddMarketModal = true;
+    }
+
+    private void OnModalMarketDistrictChanged(ChangeEventArgs e)
+    {
+        newMarketModel.District = e.Value?.ToString() ?? "";
+        modalMarketUpazilas = BangladeshLocationData.GetUpazilasForDistrict(newMarketModel.District);
+        if (modalMarketUpazilas.Count > 0)
+        {
+            newMarketModel.Upazila = modalMarketUpazilas[0];
+        }
+        else
+        {
+            newMarketModel.Upazila = "";
+        }
+    }
+
+    private async Task HandleAddMarket()
+    {
+        if (string.IsNullOrWhiteSpace(newMarketModel.NameBn))
+        {
+            marketModalError = "বাজারের বাংলা নাম আবশ্যক।";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(newMarketModel.District))
+        {
+            marketModalError = "জেলা নির্বাচন আবশ্যক।";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(newMarketModel.Upazila))
+        {
+            marketModalError = "উপজেলা নির্বাচন আবশ্যক।";
+            return;
+        }
+
+        isSubmittingMarket = true;
+        marketModalError = null;
+
+        try
+        {
+            var res = await PriceService.CreateMarketAsync(newMarketModel);
+            if (res.IsSuccess && res.Value != null)
+            {
+                markets = await PriceService.GetActiveMarketsAsync();
+                selectedDistrict = res.Value.District;
+                districtUpazilas = BangladeshLocationData.GetUpazilasForDistrict(selectedDistrict);
+                selectedUpazila = res.Value.Upazila;
+                model.MarketId = res.Value.Id;
+                showAddMarketModal = false;
+            }
+            else
+            {
+                marketModalError = res.ErrorMessage;
+            }
+        }
+        catch (Exception ex)
+        {
+            marketModalError = ex.Message;
+        }
+        finally
+        {
+            isSubmittingMarket = false;
+        }
+    }
+
+    private async Task HandleQuickAddCrop()
+    {
+        if (string.IsNullOrWhiteSpace(quickCropModel.NameBn))
+        {
+            quickCropErrorMessage = "ফসলের বাংলা নাম আবশ্যক।";
+            return;
+        }
+
+        isSubmittingQuickCrop = true;
+        quickCropErrorMessage = null;
+
+        try
+        {
+            var res = await CropService.CreateCropAsync(quickCropModel);
+            if (res.IsSuccess && res.Value != null)
+            {
+                crops = await CropService.GetAllCropsAsync();
+                model.CropId = res.Value.Id;
+                showQuickAddCropModal = false;
+                quickCropModel = new();
+            }
+            else
+            {
+                quickCropErrorMessage = res.ErrorMessage;
+            }
+        }
+        catch (Exception ex)
+        {
+            quickCropErrorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmittingQuickCrop = false;
+        }
     }
 
     private void UpdateNormalizedPreview()
@@ -276,6 +666,8 @@
 
         try
         {
+            // Explicitly force UTC Kind to prevent Npgsql DateTimeKind.Local exception
+            model.ObservationDate = DateTime.SpecifyKind(model.ObservationDate.Date, DateTimeKind.Utc);
             var userId = CurrentUser.UserId?.ToString() ?? "SystemOperator";
             var result = await PriceService.RecordObservationAsync(model, userId);
 

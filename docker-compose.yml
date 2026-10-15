@@ -11,7 +11,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:10000
       - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
-      - ConnectionStrings__DefaultConnection=Server=172.16.102.123;Port=5432;Database=KrishiBondhuDb;User Id=postgres;Password=abcd123!
+      - ConnectionStrings__DefaultConnection=Host=ep-misty-glade-b40n032y-pooler.c-6.us-east-2.aws.neon.tech;Port=5432;Database=neondb;Username=neondb_owner;Password=npg_uJy4nECLp3kh;SSL Mode=Require;Channel Binding=Require
     volumes:
       - krishibondhu-uploads:/app/uploads
 

@@ -351,7 +351,7 @@ public class MarketPriceService : IMarketPriceService
             CropId = dto.CropId,
             MarketId = dto.MarketId,
             MarketType = dto.MarketType,
-            ObservationDate = dto.ObservationDate.Date,
+            ObservationDate = DateTime.SpecifyKind(dto.ObservationDate.Date, DateTimeKind.Utc),
             PriceSourceId = dto.PriceSourceId,
             ObservedPrice = dto.ObservedPrice,
             ObservedQuantity = dto.ObservedQuantity,
@@ -447,5 +447,47 @@ public class MarketPriceService : IMarketPriceService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Success();
+    }
+
+    public async Task<Result<MarketDto>> CreateMarketAsync(CreateMarketDto dto, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(dto.NameBn))
+            return Result<MarketDto>.Failure("বাজারের বাংলা নাম আবশ্যক।");
+
+        if (string.IsNullOrWhiteSpace(dto.District))
+            return Result<MarketDto>.Failure("জেলা নির্বাচন আবশ্যক।");
+
+        if (string.IsNullOrWhiteSpace(dto.Upazila))
+            return Result<MarketDto>.Failure("উপজেলা নির্বাচন আবশ্যক।");
+
+        var code = "MKT-" + Guid.NewGuid().ToString("N")[..6].ToUpper();
+
+        var market = new Market
+        {
+            MarketCode = code,
+            NameBn = dto.NameBn.Trim(),
+            NameEn = string.IsNullOrWhiteSpace(dto.NameEn) ? dto.NameBn.Trim() : dto.NameEn.Trim(),
+            District = dto.District.Trim(),
+            Upazila = dto.Upazila.Trim(),
+            MarketType = dto.MarketType,
+            AddressDetails = dto.AddressDetails?.Trim(),
+            IsActive = true
+        };
+
+        await _marketRepo.AddAsync(market, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Result<MarketDto>.Success(new MarketDto
+        {
+            Id = market.Id,
+            MarketCode = market.MarketCode,
+            NameBn = market.NameBn,
+            NameEn = market.NameEn,
+            MarketType = market.MarketType,
+            District = market.District,
+            Upazila = market.Upazila,
+            AddressDetails = market.AddressDetails,
+            IsActive = market.IsActive
+        });
     }
 }

@@ -18,10 +18,12 @@ namespace KrishiBondhu.Infrastructure.Services;
 public class CropService : ICropService
 {
     private readonly ICropRepository _cropRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public CropService(ICropRepository cropRepository)
+    public CropService(ICropRepository cropRepository, IUnitOfWork unitOfWork)
     {
         _cropRepository = cropRepository;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<IReadOnlyList<CropDto>> GetAllCropsAsync(CancellationToken cancellationToken = default)
@@ -58,6 +60,47 @@ public class CropService : ICropService
             TypicalMaxPricePerKg = c.TypicalMaxPricePerKg,
             IconEmoji = c.IconEmoji
         };
+    }
+
+    public async Task<Result<CropDto>> CreateCropAsync(CreateCropDto dto, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(dto.NameBn))
+            return Result<CropDto>.Failure("ফসলের বাংলা নাম আবশ্যক।");
+
+        var existing = await _cropRepository.GetActiveCropsAsync(cancellationToken);
+        if (existing.Any(c => c.NameBn.Trim().Equals(dto.NameBn.Trim(), StringComparison.OrdinalIgnoreCase)))
+        {
+            return Result<CropDto>.Failure($"'{dto.NameBn.Trim()}' ফসলটি ইতিমধ্যে সিস্টেমে বিদ্যমান রয়েছে।");
+        }
+
+        var crop = new Crop
+        {
+            NameBn = dto.NameBn.Trim(),
+            NameEn = string.IsNullOrWhiteSpace(dto.NameEn) ? dto.NameBn.Trim() : dto.NameEn.Trim(),
+            Category = string.IsNullOrWhiteSpace(dto.Category) ? "শাকসবজি (Vegetables)" : dto.Category.Trim(),
+            DescriptionBn = dto.DescriptionBn?.Trim() ?? string.Empty,
+            StandardUnit = string.IsNullOrWhiteSpace(dto.StandardUnit) ? "কেজি" : dto.StandardUnit.Trim(),
+            TypicalMinPricePerKg = dto.TypicalMinPricePerKg,
+            TypicalMaxPricePerKg = dto.TypicalMaxPricePerKg,
+            IconEmoji = string.IsNullOrWhiteSpace(dto.IconEmoji) ? "🌱" : dto.IconEmoji.Trim(),
+            IsActive = true
+        };
+
+        await _cropRepository.AddAsync(crop, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Result<CropDto>.Success(new CropDto
+        {
+            Id = crop.Id,
+            NameBn = crop.NameBn,
+            NameEn = crop.NameEn,
+            Category = crop.Category,
+            DescriptionBn = crop.DescriptionBn,
+            StandardUnit = crop.StandardUnit,
+            TypicalMinPricePerKg = crop.TypicalMinPricePerKg,
+            TypicalMaxPricePerKg = crop.TypicalMaxPricePerKg,
+            IconEmoji = crop.IconEmoji
+        });
     }
 }
 

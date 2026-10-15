@@ -356,21 +356,63 @@ public class KrishiBondhuDbContext : IdentityDbContext<ApplicationUser, Identity
             b.HasOne(c => c.Market).WithMany(m => m.Complaints).HasForeignKey(c => c.MarketId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne(c => c.OfficialPriceDirective).WithMany().HasForeignKey(c => c.OfficialPriceDirectiveId).OnDelete(DeleteBehavior.SetNull);
         });
+
+        // Global UTC conversion for all DateTime and DateTime? properties across all entities
+        var dateTimeConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime, DateTime>(
+            v => v.Kind == DateTimeKind.Utc ? v : DateTime.SpecifyKind(v, DateTimeKind.Utc),
+            v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+        var nullableDateTimeConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime?, DateTime?>(
+            v => v.HasValue ? (v.Value.Kind == DateTimeKind.Utc ? v.Value : DateTime.SpecifyKind(v.Value, DateTimeKind.Utc)) : v,
+            v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
+        foreach (var entityType in builder.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType == typeof(DateTime))
+                {
+                    property.SetValueConverter(dateTimeConverter);
+                }
+                else if (property.ClrType == typeof(DateTime?))
+                {
+                    property.SetValueConverter(nullableDateTimeConverter);
+                }
+            }
+        }
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        var entries = ChangeTracker.Entries<BaseEntity>();
+        var entries = ChangeTracker.Entries();
 
         foreach (var entry in entries)
         {
-            if (entry.State == EntityState.Added)
+            if (entry.Entity is BaseEntity baseEntity)
             {
-                entry.Entity.CreatedAtUtc = DateTime.UtcNow;
+                if (entry.State == EntityState.Added)
+                {
+                    baseEntity.CreatedAtUtc = DateTime.UtcNow;
+                }
+                else if (entry.State == EntityState.Modified)
+                {
+                    baseEntity.UpdatedAtUtc = DateTime.UtcNow;
+                }
             }
-            else if (entry.State == EntityState.Modified)
+
+            if (entry.State == EntityState.Added || entry.State == EntityState.Modified)
             {
-                entry.Entity.UpdatedAtUtc = DateTime.UtcNow;
+                foreach (var prop in entry.Properties)
+                {
+                    if (prop.Metadata.ClrType == typeof(DateTime) && prop.CurrentValue is DateTime dt && dt.Kind != DateTimeKind.Utc)
+                    {
+                        prop.CurrentValue = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+                    }
+                    else if (prop.Metadata.ClrType == typeof(DateTime?) && prop.CurrentValue is DateTime ndt && ndt.Kind != DateTimeKind.Utc)
+                    {
+                        prop.CurrentValue = DateTime.SpecifyKind(ndt, DateTimeKind.Utc);
+                    }
+                }
             }
         }
 

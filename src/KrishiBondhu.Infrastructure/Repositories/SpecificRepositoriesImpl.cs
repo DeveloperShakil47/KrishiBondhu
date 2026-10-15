@@ -581,8 +581,9 @@ public class MarketPriceObservationRepository : GenericRepository<MarketPriceObs
 
         if (filter.Date.HasValue)
         {
-            var date = filter.Date.Value.Date;
-            query = query.Where(o => o.ObservationDate.Date == date);
+            var start = DateTime.SpecifyKind(filter.Date.Value.Date, DateTimeKind.Utc);
+            var end = start.AddDays(1);
+            query = query.Where(o => o.ObservationDate >= start && o.ObservationDate < end);
         }
 
         if (filter.PriceSourceId.HasValue)
@@ -609,12 +610,13 @@ public class MarketPriceObservationRepository : GenericRepository<MarketPriceObs
 
     public async Task<IReadOnlyList<MarketPriceObservation>> GetObservationsForCropAndDateAsync(Guid cropId, DateTime date, MarketType? marketType = null, string? district = null, CancellationToken cancellationToken = default)
     {
-        var targetDate = date.Date;
+        var start = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
+        var end = start.AddDays(1);
         var query = _dbSet.AsNoTracking()
             .Include(o => o.Market)
             .Include(o => o.PriceSource)
             .Include(o => o.Crop)
-            .Where(o => o.CropId == cropId && o.ObservationDate.Date == targetDate && !o.IsDeleted && o.VerificationStatus == PriceVerificationStatus.Verified);
+            .Where(o => o.CropId == cropId && o.ObservationDate >= start && o.ObservationDate < end && !o.IsDeleted && o.VerificationStatus == PriceVerificationStatus.Verified);
 
         if (marketType.HasValue)
         {
@@ -631,12 +633,12 @@ public class MarketPriceObservationRepository : GenericRepository<MarketPriceObs
 
     public async Task<IReadOnlyList<MarketPriceObservation>> GetObservationsForCropAndDateRangeAsync(Guid cropId, DateTime fromDate, DateTime toDate, string? district = null, MarketType? marketType = null, CancellationToken cancellationToken = default)
     {
-        var start = fromDate.Date;
-        var end = toDate.Date;
+        var start = DateTime.SpecifyKind(fromDate.Date, DateTimeKind.Utc);
+        var end = DateTime.SpecifyKind(toDate.Date, DateTimeKind.Utc).AddDays(1);
 
         var query = _dbSet.AsNoTracking()
             .Include(o => o.Market)
-            .Where(o => o.CropId == cropId && o.ObservationDate.Date >= start && o.ObservationDate.Date <= end && !o.IsDeleted && o.VerificationStatus == PriceVerificationStatus.Verified);
+            .Where(o => o.CropId == cropId && o.ObservationDate >= start && o.ObservationDate < end && !o.IsDeleted && o.VerificationStatus == PriceVerificationStatus.Verified);
 
         if (marketType.HasValue)
         {
@@ -663,12 +665,13 @@ public class MarketPriceObservationRepository : GenericRepository<MarketPriceObs
 
     public async Task<bool> ExistsDuplicateObservationAsync(Guid cropId, Guid marketId, MarketType marketType, DateTime observationDate, Guid priceSourceId, QualityGrade grade, CancellationToken cancellationToken = default)
     {
-        var date = observationDate.Date;
+        var start = DateTime.SpecifyKind(observationDate.Date, DateTimeKind.Utc);
+        var end = start.AddDays(1);
         return await _dbSet.AsNoTracking().AnyAsync(o =>
             o.CropId == cropId &&
             o.MarketId == marketId &&
             o.MarketType == marketType &&
-            o.ObservationDate.Date == date &&
+            o.ObservationDate >= start && o.ObservationDate < end &&
             o.PriceSourceId == priceSourceId &&
             o.Grade == grade &&
             !o.IsDeleted, cancellationToken);
@@ -785,14 +788,14 @@ public class ConsumerComplaintRepository : GenericRepository<ConsumerComplaint>,
 
         if (filter.FromDate.HasValue)
         {
-            var from = filter.FromDate.Value.Date;
-            query = query.Where(c => c.PurchaseDateTime.Date >= from);
+            var from = DateTime.SpecifyKind(filter.FromDate.Value.Date, DateTimeKind.Utc);
+            query = query.Where(c => c.PurchaseDateTime >= from);
         }
 
         if (filter.ToDate.HasValue)
         {
-            var to = filter.ToDate.Value.Date;
-            query = query.Where(c => c.PurchaseDateTime.Date <= to);
+            var to = DateTime.SpecifyKind(filter.ToDate.Value.Date, DateTimeKind.Utc).AddDays(1);
+            query = query.Where(c => c.PurchaseDateTime < to);
         }
 
         int totalCount = await query.CountAsync(cancellationToken);

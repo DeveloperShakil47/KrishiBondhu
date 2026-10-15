@@ -7,6 +7,7 @@
 @inject ICurrentUserService CurrentUser
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@using KrishiBondhu.Domain.Common
 
 <PageTitle>ভোক্তা অভিযোগ দাখিল — অতিরিক্ত মূল্যের নিরপেক্ষ অনুসন্ধান — কৃষিবন্ধু</PageTitle>
 
@@ -158,29 +159,45 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label small fw-bold">জেলা <span class="text-danger">*</span></label>
-                                <InputSelect class="form-select" @bind-Value="model.District">
-                                    <option value="">-- জেলা নির্বাচন করুন --</option>
-                                    <option value="ঢাকা (Dhaka)">ঢাকা</option>
-                                    <option value="বগুড়া (Bogura)">বগুড়া</option>
-                                    <option value="চট্টগ্রাম (Chattogram)">চট্টগ্রাম</option>
-                                    <option value="রাজশাহী (Rajshahi)">রাজশাহী</option>
-                                    <option value="যশোর (Jashore)">যশোর</option>
-                                    <option value="অন্যান্য">অন্যান্য</option>
+                                <InputSelect class="form-select" @bind-Value="model.District" @bind-Value:after="OnDistrictChanged">
+                                    <option value="">-- জেলা নির্বাচন করুন (৬৪ জেলা) --</option>
+                                    @foreach (var divisionGroup in BangladeshLocationData.Districts.GroupBy(d => d.DivisionBn))
+                                    {
+                                        <optgroup label="@($"{divisionGroup.Key} বিভাগ ({divisionGroup.First().DivisionEn} Division)")">
+                                            @foreach (var dist in divisionGroup.OrderBy(d => d.NameBn))
+                                            {
+                                                <option value="@dist.DisplayName">@dist.DisplayName</option>
+                                            }
+                                        </optgroup>
+                                    }
                                 </InputSelect>
                                 <ValidationMessage For="() => model.District" class="text-danger small" />
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label small fw-bold">উপজেলা / থানা <span class="text-danger">*</span></label>
-                                <InputText class="form-control" placeholder="যেমন: তেজগাঁও / শিবগঞ্জ" @bind-Value="model.Upazila" />
+                                @if (complaintUpazilas.Count > 0)
+                                {
+                                    <InputSelect class="form-select" @bind-Value="model.Upazila">
+                                        <option value="">-- উপজেলা নির্বাচন করুন --</option>
+                                        @foreach (var u in complaintUpazilas)
+                                        {
+                                            <option value="@u">@u</option>
+                                        }
+                                    </InputSelect>
+                                }
+                                else
+                                {
+                                    <InputText class="form-control" placeholder="যেমন: তেজগাঁও / শিবগঞ্জ" @bind-Value="model.Upazila" />
+                                }
                                 <ValidationMessage For="() => model.Upazila" class="text-danger small" />
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label small text-muted">বাজারের নাম (যদি তালিকাভুক্ত হয়)</label>
+                                <label class="form-label small text-muted">তালিকাভুক্ত বাজার (যদি প্রযোজ্য)</label>
                                 <select class="form-select" @bind="model.MarketId">
                                     <option value="">-- সাধারণ বাজার / লোকাল দোকান --</option>
-                                    @foreach (var m in availableMarkets)
+                                    @foreach (var m in filteredMarkets)
                                     {
-                                        <option value="@m.Id">@m.NameBn</option>
+                                        <option value="@m.Id">@m.NameBn (@m.District)</option>
                                     }
                                 </select>
                             </div>
@@ -327,6 +344,11 @@
     private bool isUploadSuccess = false;
 
     private ConsumerComplaintDto? submittedComplaint;
+    private IReadOnlyList<string> complaintUpazilas = Array.Empty<string>();
+
+    private IEnumerable<MarketDto> filteredMarkets => string.IsNullOrWhiteSpace(model.District)
+        ? availableMarkets
+        : availableMarkets.Where(m => m.District.Contains(model.District) || model.District.Contains(m.District));
 
     protected override async Task OnInitializedAsync()
     {
@@ -346,6 +368,19 @@
         }
 
         UpdateCalculatedPreview();
+    }
+
+    private void OnDistrictChanged()
+    {
+        complaintUpazilas = BangladeshLocationData.GetUpazilasForDistrict(model.District);
+        if (complaintUpazilas.Count > 0)
+        {
+            model.Upazila = complaintUpazilas[0];
+        }
+        else
+        {
+            model.Upazila = string.Empty;
+        }
     }
 
     private void UpdateCalculatedPreview()
@@ -418,6 +453,7 @@
 
         try
         {
+            model.PurchaseDateTime = DateTime.SpecifyKind(model.PurchaseDateTime, DateTimeKind.Utc);
             var userId = CurrentUser.UserId?.ToString();
             var clientIp = "127.0.0.1"; // Default client IP
 

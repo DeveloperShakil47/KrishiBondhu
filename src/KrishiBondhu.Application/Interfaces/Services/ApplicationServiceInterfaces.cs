@@ -38,6 +38,7 @@ public interface ICropService
 {
     Task<IReadOnlyList<CropDto>> GetAllCropsAsync(CancellationToken cancellationToken = default);
     Task<CropDto?> GetCropByIdAsync(Guid cropId, CancellationToken cancellationToken = default);
+    Task<Result<CropDto>> CreateCropAsync(CreateCropDto dto, CancellationToken cancellationToken = default);
 }
 
 public interface IHarvestLotService
@@ -120,6 +121,7 @@ public interface IMarketPriceService
     Task<IReadOnlyList<OfficialPriceDirectiveDto>> GetActiveOfficialDirectivesAsync(Guid? cropId = null, string? district = null, CancellationToken cancellationToken = default);
     Task<Result<MarketPriceObservationDto>> RecordObservationAsync(CreateMarketPriceObservationDto dto, string submittedByUserId, CancellationToken cancellationToken = default);
     Task<Result> VerifyObservationAsync(Guid observationId, PriceVerificationStatus status, string verifiedByUserId, string? notes = null, CancellationToken cancellationToken = default);
+    Task<Result<MarketDto>> CreateMarketAsync(CreateMarketDto dto, CancellationToken cancellationToken = default);
 }
 
 public interface IConsumerComplaintService

@@ -1,0 +1,318 @@
+@page "/crops"
+@page "/admin/crops"
+@rendermode InteractiveServer
+@inject ICropService CropService
+@inject ICurrentUserService CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>কৃষি ফসল তালিকা ও ব্যবস্থাপনা — কৃষিবন্ধু</PageTitle>
+
+<div class="container py-4">
+    <!-- Header banner -->
+    <div class="card border-0 shadow-sm mb-4" style="background: linear-gradient(135deg, #1B5E20 0%, #2E7D32 100%); border-radius: 18px;">
+        <div class="card-body p-4 text-white">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="p-3 bg-white text-success rounded-circle shadow-sm">
+                        <i class="bi bi-flower1 fs-3"></i>
+                    </div>
+                    <div>
+                        <h1 class="h3 fw-bold mb-1 text-white">🌾 কৃষি ফসল ও পণ্য ব্যবস্থাপনা</h1>
+                        <p class="text-light opacity-90 small mb-0">
+                            প্ল্যাটফর্মে নিবন্ধিত সকল শস্য, শাকসবজি, ফলমূল এবং নতুন ফসল তালিকাভুক্তিকরণ
+                        </p>
+                    </div>
+                </div>
+
+                <div>
+                    <button class="btn btn-warning text-dark fw-bold px-4 py-2 rounded-pill shadow-sm" @onclick="OpenAddModal">
+                        <i class="bi bi-plus-circle-fill me-1"></i> নতুন ফসল যুক্ত করুন
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show" role="alert">
+            <i class="bi @(isSuccess ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") me-2"></i> @statusMessage
+            <button type="button" class="btn-close" @onclick="() => statusMessage = null"></button>
+        </div>
+    }
+
+    <!-- Search & Category Filters -->
+    <div class="card border-0 shadow-sm mb-4 p-3" style="border-radius: 14px;">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" class="form-control" placeholder="ফসলের নাম বা বর্ণনা দিয়ে খুঁজুন..." @bind="searchTerm" @bind:event="oninput" />
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select class="form-select" @bind="selectedCategory">
+                    <option value="">-- সকল ক্যাটাগরি --</option>
+                    <option value="খাদ্যশস্য">খাদ্যশস্য (Cereals)</option>
+                    <option value="শাকসবজি">শাকসবজি (Vegetables)</option>
+                    <option value="ডাল">ডাল (Pulses)</option>
+                    <option value="মসলা">মসলা (Spices)</option>
+                    <option value="তৈলবীজ">তৈলবীজ (Oilseeds)</option>
+                    <option value="ফলমূল">ফলমূল (Fruits)</option>
+                    <option value="অর্থকরী ফসল">অর্থকরী ফসল (Cash Crops)</option>
+                </select>
+            </div>
+            <div class="col-md-2 text-end">
+                <button class="btn btn-outline-secondary w-100" @onclick="ResetFilters">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i> রিসেট
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Crops Grid -->
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-success" role="status"></div>
+            <p class="mt-2 text-muted">ফসল তালিকা লোড হচ্ছে...</p>
+        </div>
+    }
+    else if (!FilteredCrops.Any())
+    {
+        <div class="card border-0 shadow-sm text-center py-5" style="border-radius: 14px;">
+            <div class="card-body">
+                <i class="bi bi-basket3 fs-1 text-muted d-block mb-3"></i>
+                <h5 class="fw-bold text-dark">কোনো ফসল পাওয়া যায়নি</h5>
+                <p class="text-muted small">অন্য কিওয়ার্ড দিয়ে খুঁজুন অথবা নতুন ফসল যুক্ত করুন।</p>
+                <button class="btn btn-success mt-2" @onclick="OpenAddModal">
+                    <i class="bi bi-plus-circle me-1"></i> প্রথম ফসল যুক্ত করুন
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var c in FilteredCrops)
+            {
+                <div class="col-md-6 col-lg-4">
+                    <div class="card border-0 shadow-sm h-100 p-3" style="border-radius: 14px; transition: transform 0.2s;">
+                        <div class="d-flex align-items-center gap-3 mb-2">
+                            <span class="fs-1 p-2 bg-light rounded-circle shadow-sm">@(string.IsNullOrEmpty(c.IconEmoji) ? "🌱" : c.IconEmoji)</span>
+                            <div class="flex-grow-1">
+                                <h5 class="fw-bold text-dark mb-0">@c.NameBn</h5>
+                                <span class="text-muted small">@c.NameEn</span>
+                            </div>
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 small">
+                                @c.Category
+                            </span>
+                        </div>
+
+                        <div class="small text-secondary mb-3 mt-1" style="min-height: 40px;">
+                            @(string.IsNullOrEmpty(c.DescriptionBn) ? "কোনো বিশেষ বিবরণ নেই।" : c.DescriptionBn)
+                        </div>
+
+                        <div class="p-2 rounded bg-light d-flex justify-content-between align-items-center text-muted small mt-auto">
+                            <div>
+                                মানসম্মত একক: <strong>@c.StandardUnit</strong>
+                            </div>
+                            <div>
+                                সাধারণ রেঞ্জ: <strong>৳@c.TypicalMinPricePerKg.ToString("F0") - @c.TypicalMaxPricePerKg.ToString("F0")</strong>/@c.StandardUnit
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- Modal: Add New Crop -->
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow" style="border-radius: 18px;">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-dark">
+                        <i class="bi bi-plus-circle text-success me-2"></i>নতুন ফসল যুক্ত করুন
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseAddModal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <EditForm Model="newCrop" OnValidSubmit="HandleCreateCrop">
+                        <DataAnnotationsValidator />
+
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label small fw-bold">ফসলের বাংলা নাম <span class="text-danger">*</span></label>
+                                <InputText class="form-control" placeholder="যেমন: পেঁপে / ড্রাগন ফল / শসা" @bind-Value="newCrop.NameBn" />
+                                <ValidationMessage For="() => newCrop.NameBn" class="text-danger small" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">আইকন / ইমোজি</label>
+                                <InputText class="form-control text-center fs-5" placeholder="🌱" @bind-Value="newCrop.IconEmoji" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted">ইংরেজি নাম (ঐচ্ছিক)</label>
+                                <InputText class="form-control" placeholder="যেমন: Papaya / Dragon Fruit" @bind-Value="newCrop.NameEn" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">ক্যাটাগরি <span class="text-danger">*</span></label>
+                                <InputSelect class="form-select" @bind-Value="newCrop.Category">
+                                    <option value="শাকসবজি (Vegetables)">শাকসবজি (Vegetables)</option>
+                                    <option value="খাদ্যশস্য (Cereals)">খাদ্যশস্য (Cereals)</option>
+                                    <option value="ফলমূল (Fruits)">ফলমূল (Fruits)</option>
+                                    <option value="ডাল (Pulses)">ডাল (Pulses)</option>
+                                    <option value="মসলা (Spices)">মসলা (Spices)</option>
+                                    <option value="তৈলবীজ (Oilseeds)">তৈলবীজ (Oilseeds)</option>
+                                    <option value="অর্থকরী ফসল (Cash Crops)">অর্থকরী ফসল (Cash Crops)</option>
+                                </InputSelect>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">স্ট্যান্ডার্ড একক</label>
+                                <InputSelect class="form-select" @bind-Value="newCrop.StandardUnit">
+                                    <option value="কেজি">কেজি (Kg)</option>
+                                    <option value="মণ">মণ (Mon = 40 Kg)</option>
+                                    <option value="লিটার">লিটার (Litre)</option>
+                                    <option value="টি">টি / পিস (Piece)</option>
+                                </InputSelect>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label small text-muted">প্রত্যাশিত সর্বনিম্ন দর</label>
+                                <InputNumber class="form-control" @bind-Value="newCrop.TypicalMinPricePerKg" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label small text-muted">প্রত্যাশিত সর্বোচ্চ দর</label>
+                                <InputNumber class="form-control" @bind-Value="newCrop.TypicalMaxPricePerKg" />
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label small text-muted">সংক্ষিপ্ত বিবরণ (ঐচ্ছিক)</label>
+                                <InputTextArea class="form-control" rows="2" placeholder="ফসলের জাত বা বৈশিষ্ট্য..." @bind-Value="newCrop.DescriptionBn" />
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                            <button type="button" class="btn btn-outline-secondary" @onclick="CloseAddModal">বাতিল</button>
+                            <button type="submit" class="btn btn-success fw-bold px-4" disabled="@isSubmitting">
+                                @if (isSubmitting)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                    <span>সংরক্ষণ হচ্ছে...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-check-circle me-1"></i>
+                                    <span>ফসল সংরক্ষণ করুন</span>
+                                }
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<CropDto> allCrops = new List<CropDto>();
+    private bool isLoading = true;
+    private string searchTerm = string.Empty;
+    private string selectedCategory = string.Empty;
+
+    private bool showModal = false;
+    private bool isSubmitting = false;
+    private string? statusMessage;
+    private bool isSuccess = false;
+
+    private CreateCropDto newCrop = new();
+
+    private IEnumerable<CropDto> FilteredCrops => allCrops.Where(c =>
+        (string.IsNullOrWhiteSpace(searchTerm) ||
+         c.NameBn.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+         c.NameEn.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+         c.DescriptionBn.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) &&
+        (string.IsNullOrWhiteSpace(selectedCategory) || c.Category.Contains(selectedCategory, StringComparison.OrdinalIgnoreCase)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCrops();
+    }
+
+    private async Task LoadCrops()
+    {
+        isLoading = true;
+        try
+        {
+            allCrops = await CropService.GetAllCropsAsync();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenAddModal()
+    {
+        newCrop = new CreateCropDto
+        {
+            Category = "শাকসবজি (Vegetables)",
+            StandardUnit = "কেজি",
+            TypicalMinPricePerKg = 25m,
+            TypicalMaxPricePerKg = 60m,
+            IconEmoji = "🌱"
+        };
+        showModal = true;
+    }
+
+    private void CloseAddModal()
+    {
+        showModal = false;
+    }
+
+    private async Task HandleCreateCrop()
+    {
+        isSubmitting = true;
+        statusMessage = null;
+
+        try
+        {
+            var result = await CropService.CreateCropAsync(newCrop);
+            if (result.IsSuccess)
+            {
+                isSuccess = true;
+                statusMessage = $"'{result.Value?.NameBn}' ফসলটি সফলভাবে তালিকাভুক্ত হয়েছে!";
+                showModal = false;
+                await LoadCrops();
+            }
+            else
+            {
+                isSuccess = false;
+                statusMessage = result.ErrorMessage;
+            }
+        }
+        catch (Exception ex)
+        {
+            isSuccess = false;
+            statusMessage = $"ত্রুটি: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void ResetFilters()
+    {
+        searchTerm = string.Empty;
+        selectedCategory = string.Empty;
+    }
+}

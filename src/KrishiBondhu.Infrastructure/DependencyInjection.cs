@@ -20,12 +20,16 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
+        AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
         var provider = configuration["DatabaseProvider"] ?? "PostgreSQL";
         var connectionString = configuration.GetConnectionString("DefaultConnection") 
                                ?? "Server=172.16.102.123;Port=5432;Database=EPrintDb;User Id=postgres;Password=abcd123!";
 
         services.AddDbContext<KrishiBondhuDbContext>(options =>
         {
+            options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+
             if (provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
             {
                 options.UseSqlite(connectionString);
