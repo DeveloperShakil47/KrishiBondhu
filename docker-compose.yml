@@ -1,0 +1,19 @@
+services:
+  krishibondhu-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: krishibondhu-web
+    restart: unless-stopped
+    ports:
+      - "10000:10000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:10000
+      - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+      - ConnectionStrings__DefaultConnection=Server=172.16.102.123;Port=5432;Database=KrishiBondhuDb;User Id=postgres;Password=abcd123!
+    volumes:
+      - krishibondhu-uploads:/app/uploads
+
+volumes:
+  krishibondhu-uploads:

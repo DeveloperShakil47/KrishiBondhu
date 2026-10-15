@@ -1,0 +1,16 @@
+**/.git
+**/.gitignore
+**/.gitattributes
+**/.vs
+**/.vscode
+**/.gemini
+**/bin
+**/obj
+**/TestResults
+tests/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.DS_Store
+Thumbs.db
