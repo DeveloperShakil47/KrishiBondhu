@@ -1,0 +1,121 @@
+@page "/disputes"
+@inject IDisputeService DisputeService
+@inject ICurrentUserService CurrentUser
+@inject ILocalizationService Loc
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>বিরোধ নিষ্পত্তি ও সালিশি পোর্টাল | কৃষিবন্ধু</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h2 class="fw-bold mb-1">
+            <i class="bi bi-shield-shaded text-danger me-2"></i>বিরোধ ও সালিশি পোর্টাল
+        </h2>
+        <p class="text-muted small mb-0">ওজন পরিমাপে ত্রুটি, পণ্যের মানে সমস্যা বা লেনদেন জটিলতা নিষ্পত্তির কেন্দ্রীয় প্ল্যাটফর্ম</p>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="kb-stat-card">
+            <div class="kb-stat-icon red"><i class="bi bi-exclamation-triangle"></i></div>
+            <div>
+                <div class="kb-stat-value">@(disputes?.Count(d => d.Status == DisputeStatus.Open) ?? 0)</div>
+                <div class="kb-stat-label">উন্মুক্ত বিরোধ</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="kb-stat-card">
+            <div class="kb-stat-icon gold"><i class="bi bi-hourglass-split"></i></div>
+            <div>
+                <div class="kb-stat-value">@(disputes?.Count(d => d.Status == DisputeStatus.UnderReview) ?? 0)</div>
+                <div class="kb-stat-label">তদন্তাধীন</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="kb-stat-card">
+            <div class="kb-stat-icon green"><i class="bi bi-check-circle"></i></div>
+            <div>
+                <div class="kb-stat-value">@(disputes?.Count(d => d.Status == DisputeStatus.Resolved) ?? 0)</div>
+                <div class="kb-stat-label">মীমাংসিত বিরোধ</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (disputes == null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-success" role="status"></div>
+        <p class="mt-2 text-muted">বিরোধের তালিকা লোড হচ্ছে...</p>
+    </div>
+}
+else if (!disputes.Any())
+{
+    <div class="kb-card text-center py-5">
+        <i class="bi bi-shield-check fs-1 text-success d-block mb-3"></i>
+        <h5 class="fw-bold">কোনো সক্রিয় বিরোধ বা অভিযোগ নেই</h5>
+        <p class="text-muted small">সকল লেনদেন সন্তোষজনকভাবে সম্পন্ন হচ্ছে।</p>
+    </div>
+}
+else
+{
+    <div class="kb-card">
+        <div class="table-responsive">
+            <table class="table kb-table align-middle">
+                <thead>
+                    <tr>
+                        <th>বিরোধ নম্বর</th>
+                        <th>অর্ডার নম্বর</th>
+                        <th>উত্থাপনকারী</th>
+                        <th>কারণ</th>
+                        <th>তারিখ</th>
+                        <th>অবস্থা</th>
+                        <th>পদক্ষেপ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in disputes)
+                    {
+                        <tr>
+                            <td><strong class="text-danger">@d.DisputeNumber</strong></td>
+                            <td>
+                                <a href="orders/@d.OrderId" class="fw-bold text-success text-decoration-none">
+                                    @d.OrderNumber
+                                </a>
+                            </td>
+                            <td>
+                                @d.RaisedByName <span class="badge bg-secondary-subtle text-secondary small">@d.RaisedByRole</span>
+                            </td>
+                            <td>@d.Reason</td>
+                            <td>@d.CreatedAtUtc.ToString("dd MMM yyyy, hh:mm tt")</td>
+                            <td>
+                                <span class="kb-badge @(d.Status == DisputeStatus.Resolved ? "kb-badge-success" : d.Status == DisputeStatus.Open ? "kb-badge-danger" : "kb-badge-warning")">
+                                    @d.Status.ToString()
+                                </span>
+                            </td>
+                            <td>
+                                <a href="orders/@d.OrderId" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-eye"></i> অর্ডার ও সালিশি দেখুন
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private List<DisputeCaseDto>? disputes;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await DisputeService.GetDisputesAsync(null, 1, 50);
+        disputes = result.Items.ToList();
+    }
+}

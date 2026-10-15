@@ -1,0 +1,422 @@
+@page "/complaints/review"
+@attribute [Authorize(Roles = "Administrator,SupportAgent")]
+@rendermode InteractiveServer
+@inject IConsumerComplaintService ComplaintService
+@inject ICropService CropService
+@inject ICurrentUserService CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>ভোক্তা অভিযোগ পর্যালোচনা ড্যাশবোর্ড — কৃষিবন্ধু প্রশাসন</PageTitle>
+
+<div class="container-fluid py-3">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom">
+        <div>
+            <h1 class="h3 fw-bold text-dark mb-1">🛡️ ভোক্তা অভিযোগ পর্যালোচনা ও নিরীক্ষা ড্যাশবোর্ড</h1>
+            <p class="text-muted small mb-0">অতিরিক্ত মূল্যের অভিযোগসমূহের নিরপেক্ষ বিশ্লেষণ, প্রমাণাদি নিরীক্ষা ও আইনি নিষ্পত্তি ব্যবস্থাপনা</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="market-prices" class="btn btn-outline-success btn-sm rounded-pill px-3">
+                <i class="bi bi-graph-up me-1"></i> দৈনিক বাজারদর দেখুন
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+        <div class="card-body p-3">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">অনুসন্ধান (ট্র্যাকিং/দোকান/ফোন)</label>
+                    <input type="text" class="form-control" placeholder="ট্র্যাকিং নং বা দোকানের নাম..." @bind="filter.SearchTerm" @bind:after="LoadComplaintsAsync" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold">অভিযোগের অবস্থা</label>
+                    <select class="form-select" @bind="filter.Status" @bind:after="LoadComplaintsAsync">
+                        <option value="">সকল অবস্থা</option>
+                        <option value="@ComplaintStatus.Submitted">দাখিলকৃত (Submitted)</option>
+                        <option value="@ComplaintStatus.UnderReview">পর্যালোচনাধীন (UnderReview)</option>
+                        <option value="@ComplaintStatus.AwaitingInformation">অতিরিক্ত তথ্য প্রয়োজন</option>
+                        <option value="@ComplaintStatus.Resolved">মীমাংসিত (Resolved)</option>
+                        <option value="@ComplaintStatus.Rejected">প্রত্যাখ্যাত (Rejected)</option>
+                        <option value="@ComplaintStatus.ReferredToAuthority">আইনগত পদক্ষেপে প্রেরিত</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">পণ্য / ফসল</label>
+                    <select class="form-select" @bind="filter.CropId" @bind:after="LoadComplaintsAsync">
+                        <option value="">সকল পণ্য</option>
+                        @foreach (var c in crops)
+                        {
+                            <option value="@c.Id">@c.IconEmoji @c.NameBn</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold">বিক্রেতার ধরন</label>
+                    <select class="form-select" @bind="filter.SellerType" @bind:after="LoadComplaintsAsync">
+                        <option value="">সকল বিক্রেতা</option>
+                        <option value="@MarketType.Retail">খুচরা বিক্রেতা</option>
+                        <option value="@MarketType.Wholesale">পাইকারি আড়তদার</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-outline-secondary w-100" @onclick="ResetFilterAsync">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> রিসেট
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Complaints List & Review Drawer -->
+    <div class="row g-4">
+        <!-- List Column -->
+        <div class="@(selectedComplaint != null ? "col-lg-7" : "col-12")">
+            <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-header bg-white border-0 pt-4 px-4 pb-2 d-flex justify-content-between align-items-center">
+                    <h2 class="h5 fw-bold mb-0 text-dark">
+                        অভিযোগের তালিকা (@(complaints?.TotalCount ?? 0) টি রেকর্ড)
+                    </h2>
+                </div>
+                <div class="card-body p-0">
+                    @if (isLoading)
+                    {
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="text-muted small mt-2">তথ্য লোড হচ্ছে...</p>
+                        </div>
+                    }
+                    else if (complaints != null && complaints.Items.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>ট্র্যাকিং নং ও তারিখ</th>
+                                        <th>অভিযুক্ত দোকান</th>
+                                        <th>পণ্য ও দাবিকৃত দর</th>
+                                        <th>গড় বাজারদর</th>
+                                        <th>অবস্থা</th>
+                                        <th class="text-end">অ্যাকশন</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var c in complaints.Items)
+                                    {
+                                        <tr class="@(selectedComplaint?.Id == c.Id ? "table-active" : "")">
+                                            <td>
+                                                <div class="fw-bold font-monospace text-primary">@c.TrackingNumber</div>
+                                                <div class="text-muted small">@c.CreatedAtUtc.ToString("dd MMM yyyy, hh:mm tt")</div>
+                                            </td>
+                                            <td>
+                                                <div class="fw-bold text-dark">@c.ShopOrBusinessName</div>
+                                                <div class="text-muted small">@c.District, @c.Upazila (@(c.SellerType == MarketType.Wholesale ? "পাইকারি" : "খুচরা"))</div>
+                                            </td>
+                                            <td>
+                                                <div class="fw-semibold text-danger">৳@c.NormalizedPricePerUnit.ToString("F2") / @c.StandardUnit</div>
+                                                <div class="text-muted small">মোট: ৳@c.ActualPriceCharged.ToString("F2") (@c.QuantityPurchased @c.ReportedUnit)</div>
+                                            </td>
+                                            <td>
+                                                @if (c.MatchedMarketAveragePrice.HasValue)
+                                                {
+                                                    <div class="fw-semibold text-dark">৳@c.MatchedMarketAveragePrice.Value.ToString("F2")</div>
+                                                    @if (c.PriceVariancePercentage.HasValue)
+                                                    {
+                                                        <span class="badge @(c.PriceVariancePercentage.Value > 0 ? "bg-danger" : "bg-success")">
+                                                            @(c.PriceVariancePercentage.Value > 0 ? "+" : "")@c.PriceVariancePercentage.Value.ToString("F1")%
+                                                        </span>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted small">রেকর্ড নেই</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <span class="badge @GetBadgeClass(c.Status)">
+                                                    @GetStatusNameBn(c.Status)
+                                                </span>
+                                            </td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-primary px-3 rounded-pill" @onclick="() => SelectComplaintForReview(c)">
+                                                    নিরীক্ষা করুন <i class="bi bi-chevron-right ms-1"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-light border text-center text-muted m-4 py-5">
+                            <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                            কোনো অভিযোগের রেকর্ড পাওয়া যায়নি।
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Review & Inspection Drawer Column -->
+        @if (selectedComplaint != null)
+        {
+            <div class="col-lg-5">
+                <div class="card border-0 shadow-sm sticky-top" style="border-radius: 16px; top: 1rem;">
+                    <div class="card-header bg-white border-0 pt-4 px-4 pb-2 d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-primary-subtle text-primary font-monospace">@selectedComplaint.TrackingNumber</span>
+                            <h2 class="h5 fw-bold mb-0 text-dark mt-1">অভিযোগ নিরীক্ষা ও সিদ্ধান্ত গ্রহণ</h2>
+                        </div>
+                        <button type="button" class="btn-close" @onclick="() => selectedComplaint = null"></button>
+                    </div>
+
+                    <div class="card-body p-4 overflow-auto" style="max-height: 80vh;">
+                        <!-- Complainant Protected Details -->
+                        <div class="p-3 bg-light rounded-3 mb-3 border">
+                            <div class="fw-bold text-secondary small text-uppercase mb-1">
+                                <i class="bi bi-lock-fill text-warning me-1"></i> গোপনীয় অভিযোগকারী তথ্য:
+                            </div>
+                            <div class="small">
+                                <div><strong>নাম:</strong> @selectedComplaint.ComplainantName</div>
+                                <div><strong>মোবাইল:</strong> <a href="tel:@selectedComplaint.ComplainantPhone">@selectedComplaint.ComplainantPhone</a></div>
+                                @if (!string.IsNullOrEmpty(selectedComplaint.ComplainantEmail))
+                                {
+                                    <div><strong>ইমেইল:</strong> @selectedComplaint.ComplainantEmail</div>
+                                }
+                            </div>
+                        </div>
+
+                        <!-- Shop & Purchase Details -->
+                        <div class="mb-3">
+                            <label class="fw-bold small text-muted">দোকান ও লেনদেন:</label>
+                            <div class="fw-bold text-dark">@selectedComplaint.ShopOrBusinessName</div>
+                            <div class="text-secondary small">@selectedComplaint.ShopAddress, @selectedComplaint.Upazila, @selectedComplaint.District</div>
+                            <div class="small mt-1">
+                                পণ্য: <strong>@selectedComplaint.CropNameBn</strong> | ক্রয়: @selectedComplaint.QuantityPurchased @selectedComplaint.ReportedUnit | মোট মূল্য: <strong>৳@selectedComplaint.ActualPriceCharged.ToString("F2")</strong>
+                            </div>
+                            <div class="small text-danger fw-bold mt-1">
+                                প্রতি কেজি দর: ৳@selectedComplaint.NormalizedPricePerUnit.ToString("F2")
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(selectedComplaint.Description))
+                        {
+                            <div class="mb-3">
+                                <label class="fw-bold small text-muted">অভিযোগকারীর বক্তব্য:</label>
+                                <div class="p-2 bg-light rounded small text-dark border">
+                                    @selectedComplaint.Description
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Evidence / Receipt View -->
+                        @if (selectedComplaint.HasReceiptEvidence)
+                        {
+                            <div class="mb-3">
+                                <label class="fw-bold small text-muted">সংযুক্ত প্রমাণপত্র / ক্যাশ মেমো:</label>
+                                <div class="mt-1">
+                                    <a href="/api/evidence/@selectedComplaint.ReceiptEvidencePath" target="_blank" class="btn btn-sm btn-outline-info d-flex align-items-center gap-2">
+                                        <i class="bi bi-image"></i> প্রমাণপত্র দেখুন বা ডাউনলোড করুন (@selectedComplaint.ReceiptFileName)
+                                    </a>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Objective Neutral Comparative Analysis -->
+                        <div class="p-3 mb-3 rounded-3" style="background-color: #F8FAFC; border: 1px solid #E2E8F0;">
+                            <div class="fw-bold small text-primary mb-1">
+                                <i class="bi bi-cpu me-1"></i> বাজার ও আইনি নির্দেশিকা তুলনামূলক বিশ্লেষণ:
+                            </div>
+                            <div class="small text-secondary">
+                                @selectedComplaint.ComparisonAnalysisNotes
+                            </div>
+                        </div>
+
+                        <!-- Decision Form -->
+                        <EditForm Model="reviewModel" OnValidSubmit="HandleSaveReview">
+                            <DataAnnotationsValidator />
+
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">নতুন সিদ্ধান্ত অবস্থা <span class="text-danger">*</span></label>
+                                <InputSelect class="form-select border-primary" @bind-Value="reviewModel.NewStatus">
+                                    <option value="@ComplaintStatus.UnderReview">পর্যালোচনাধীন (Under Review)</option>
+                                    <option value="@ComplaintStatus.AwaitingInformation">অতিরিক্ত প্রমাণ / তথ্য প্রয়োজন (Awaiting Info)</option>
+                                    <option value="@ComplaintStatus.Resolved">মীমাংসিত (Resolved)</option>
+                                    <option value="@ComplaintStatus.Rejected">প্রত্যাখ্যাত (Rejected / Invalid)</option>
+                                    <option value="@ComplaintStatus.ReferredToAuthority">আইনগত ব্যবস্থা গ্রহণে ভোক্তা অধিকারে প্রেরিত (Referred)</option>
+                                </InputSelect>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">অভ্যন্তরীণ পর্যালোচনামূলক নোট (Internal Staff Notes)</label>
+                                <InputTextArea class="form-control" rows="2" placeholder="শুধুমাত্র কর্মকর্তা ও সহায়তাকারীদের জন্য..." @bind-Value="reviewModel.ReviewerNotes" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">সিদ্ধান্তের যৌক্তিক কারণ (অভিযোগকারী ট্র্যাকিং পেজে দেখতে পাবেন)</label>
+                                <InputTextArea class="form-control" rows="2" placeholder="যেমন: প্রমাণপত্র যাচাই করে বিক্রেতাকে নোটিশ প্রেরণ করা হয়েছে..." @bind-Value="reviewModel.DecisionReason" />
+                            </div>
+
+                            <!-- Explicit Publication Action (Must never be automatic) -->
+                            <div class="p-3 bg-light rounded-3 mb-3 border">
+                                <div class="form-check">
+                                    <InputCheckbox class="form-check-input" id="chkPublic" @bind-Value="reviewModel.IsPubliclyVisible" />
+                                    <label class="form-check-label small fw-bold text-dark" for="chkPublic">
+                                        উন্মুক্ত বুলেটিনে প্রকাশ করুন (Public Bulletin)
+                                    </label>
+                                </div>
+                                <div class="text-muted" style="font-size: 0.75rem;">
+                                    সতর্কতা: নিরপেক্ষ নিরীক্ষা ও উভয় পক্ষের বক্তব্য গ্রহণ ব্যতীত কোনো বিক্রেতাকে দোষী সাব্যস্ত করে অভিযোগ প্রকাশ করা যাবে না।
+                                </div>
+                                @if (reviewModel.IsPubliclyVisible)
+                                {
+                                    <div class="mt-2">
+                                        <label class="form-label small">প্রকাশযোগ্য নিরপেক্ষ সারসংক্ষেপ:</label>
+                                        <InputText class="form-control form-control-sm" placeholder="নিরপেক্ষ তথ্যসংবলিত সারসংক্ষেপ..." @bind-Value="reviewModel.PublicSummary" />
+                                    </div>
+                                }
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(reviewErrorMessage))
+                            {
+                                <div class="alert alert-danger small p-2 mb-3">
+                                    @reviewErrorMessage
+                                </div>
+                            }
+
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => selectedComplaint = null">বাতিল</button>
+                                <button type="submit" class="btn btn-primary btn-sm fw-bold px-4" disabled="@isSavingReview">
+                                    @if (isSavingReview)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                        <span>সংরক্ষণ হচ্ছে...</span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-check2-circle me-1"></i>
+                                        <span>সিদ্ধান্ত সংরক্ষণ করুন</span>
+                                    }
+                                </button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private ComplaintFilterDto filter = new() { PageSize = 30 };
+    private PaginatedList<ConsumerComplaintDto>? complaints;
+    private IReadOnlyList<CropDto> crops = new List<CropDto>();
+    private bool isLoading = true;
+
+    private ConsumerComplaintDto? selectedComplaint;
+    private ReviewComplaintDto reviewModel = new();
+    private bool isSavingReview = false;
+    private string? reviewErrorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        crops = await CropService.GetAllCropsAsync();
+        await LoadComplaintsAsync();
+    }
+
+    private async Task LoadComplaintsAsync()
+    {
+        isLoading = true;
+        try
+        {
+            complaints = await ComplaintService.SearchComplaintsForReviewAsync(filter);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ResetFilterAsync()
+    {
+        filter = new ComplaintFilterDto { PageSize = 30 };
+        await LoadComplaintsAsync();
+    }
+
+    private void SelectComplaintForReview(ConsumerComplaintDto c)
+    {
+        selectedComplaint = c;
+        reviewModel = new ReviewComplaintDto
+        {
+            ComplaintId = c.Id,
+            NewStatus = c.Status,
+            ReviewerNotes = c.ReviewerNotes,
+            DecisionReason = c.DecisionReason,
+            IsPubliclyVisible = c.IsPubliclyVisible,
+            PublicSummary = c.PublicSummary
+        };
+        reviewErrorMessage = null;
+    }
+
+    private async Task HandleSaveReview()
+    {
+        if (selectedComplaint == null) return;
+
+        isSavingReview = true;
+        reviewErrorMessage = null;
+
+        try
+        {
+            var reviewerId = CurrentUser.UserId?.ToString() ?? "SupportStaff";
+            var result = await ComplaintService.ReviewComplaintAsync(reviewModel, reviewerId);
+            if (result.IsSuccess)
+            {
+                selectedComplaint.Status = reviewModel.NewStatus;
+                selectedComplaint.ReviewerNotes = reviewModel.ReviewerNotes;
+                selectedComplaint.DecisionReason = reviewModel.DecisionReason;
+                selectedComplaint.IsPubliclyVisible = reviewModel.IsPubliclyVisible;
+                selectedComplaint.PublicSummary = reviewModel.PublicSummary;
+
+                await LoadComplaintsAsync();
+                selectedComplaint = null;
+            }
+            else
+            {
+                reviewErrorMessage = result.ErrorMessage;
+            }
+        }
+        catch (Exception ex)
+        {
+            reviewErrorMessage = $"সংরক্ষণে সমস্যা: {ex.Message}";
+        }
+        finally
+        {
+            isSavingReview = false;
+        }
+    }
+
+    private static string GetStatusNameBn(ComplaintStatus status) => status switch
+    {
+        ComplaintStatus.Submitted => "দাখিলকৃত",
+        ComplaintStatus.UnderReview => "পর্যালোচনাধীন",
+        ComplaintStatus.AwaitingInformation => "তথ্য প্রয়োজন",
+        ComplaintStatus.Resolved => "মীমাংসিত",
+        ComplaintStatus.Rejected => "প্রত্যাখ্যাত",
+        ComplaintStatus.ReferredToAuthority => "ভোক্তা অধিকারে প্রেরিত",
+        _ => "অপেক্ষমাণ"
+    };
+
+    private static string GetBadgeClass(ComplaintStatus status) => status switch
+    {
+        ComplaintStatus.Submitted => "bg-secondary-subtle text-secondary border",
+        ComplaintStatus.UnderReview => "bg-primary-subtle text-primary border border-primary-subtle",
+        ComplaintStatus.AwaitingInformation => "bg-warning-subtle text-dark border border-warning-subtle",
+        ComplaintStatus.Resolved => "bg-success-subtle text-success border border-success-subtle",
+        ComplaintStatus.Rejected => "bg-danger-subtle text-danger border border-danger-subtle",
+        ComplaintStatus.ReferredToAuthority => "bg-dark text-white",
+        _ => "bg-secondary text-white"
+    };
+}

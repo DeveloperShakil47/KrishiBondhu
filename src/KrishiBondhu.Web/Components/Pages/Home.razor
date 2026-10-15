@@ -1,0 +1,169 @@
+@page "/"
+@inject ICropService CropService
+@inject IHarvestLotService LotService
+@inject IBuyerService BuyerService
+@inject ILocalizationService Loc
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>কৃষিবন্ধু ডিসিশন ইঞ্জিন | KrishiBondhu Agricultural Decision Support</PageTitle>
+
+<!-- Hero Section -->
+<div class="row align-items-center g-4 kb-hero-card" style="background: linear-gradient(135deg, #073812 0%, #0D5C2E 70%, #166534 100%); border-radius: var(--kb-radius-lg); color: white; padding: 3.25rem 2.5rem; margin-bottom: 2.5rem;">
+    <div class="col-lg-7">
+        <div class="badge bg-warning text-dark px-3 py-2 rounded-pill fw-bold mb-3">
+            🌾 বাংলাদেশের কৃষকের ন্যায্যমূল্যের বিশ্বস্ত সহচর
+        </div>
+        <h1 class="display-5 fw-bold mb-3 text-white">
+            সঠিক দর তুলনা করুন,<br />
+            <span style="color: #FBBF24;">প্রকৃত নিট লাভ</span> বুঝে নিন
+        </h1>
+        <p class="lead mb-4 text-light" style="opacity: 0.9; max-width: 600px;">
+            কৃষিবন্ধু ডিসিশন ইঞ্জিন হলো বাংলাদেশের প্রথম কৃষি বাণিজ্য প্ল্যাটফর্ম—যেখানে কৃষক ক্রেতাদের বিভিন্ন অফার বিশ্লেষণ, পরিবহন ও আড়ত খরচ বাদ দিয়ে নিট বিক্রয়মূল্য নির্ধারণ এবং ডিজিটাল ওজনের শতভাগ স্বচ্ছতা নিশ্চিত করতে পারেন।
+        </p>
+
+        <div class="d-flex flex-wrap gap-3">
+            <a href="lots" class="btn btn-warning btn-lg fw-bold px-4 py-2 text-dark shadow" style="border-radius: var(--kb-radius-sm);">
+                <i class="bi bi-basket me-2"></i>ফসলের লটসমূহ দেখুন
+            </a>
+            <a href="register" class="btn btn-outline-light btn-lg fw-bold px-4 py-2" style="border-radius: var(--kb-radius-sm);">
+                <i class="bi bi-person-plus me-2"></i>বিনামূল্যে নিবন্ধন করুন
+            </a>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <!-- Interactive Decision Engine Teaser Card -->
+        <div class="card shadow-lg border-0" style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border-radius: var(--kb-radius); color: #0F172A;">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <span class="badge bg-success-subtle text-success fw-bold px-2 py-1">লাইভ ক্যালকুলেটর প্রিভিউ</span>
+                    <span class="text-muted small">বগুড়া মহাস্থান হাট</span>
+                </div>
+                <h5 class="fw-bold mb-3 text-success">
+                    <i class="bi bi-calculator me-1"></i> নিট বিক্রয়মূল্য বিশ্লেষণ
+                </h5>
+
+                <div class="kb-calc-box mb-3 p-3">
+                    <div class="kb-calc-row">
+                        <span>৫০ মণ বোরো ধান (২,০০০ কেজি) @@ ৩৫ ৳/কেজি</span>
+                        <strong class="text-dark">৳ ৭০,০০০.০০</strong>
+                    </div>
+                    <div class="kb-calc-row deduction">
+                        <span><i class="bi bi-truck me-1"></i> পরিবহন খরচ কর্তন</span>
+                        <span>- ৳ ১,৫০০.০০</span>
+                    </div>
+                    <div class="kb-calc-row deduction">
+                        <span><i class="bi bi-box me-1"></i> বস্তা ও কুলি খরচ</span>
+                        <span>- ৳ ১,৪০০.০০</span>
+                    </div>
+                    <div class="kb-calc-row deduction">
+                        <span><i class="bi bi-shield-check me-1"></i> প্ল্যাটফর্ম সেবা ফি (০.৫%)</span>
+                        <span>- ৳ ৩৫০.০০</span>
+                    </div>
+                    <div class="kb-calc-row total">
+                        <span>কৃষকের নিট প্রাপ্তি:</span>
+                        <span class="text-success fw-bold">৳ ৬৬,৭৫০.০০</span>
+                    </div>
+                </div>
+
+                <div class="text-muted small text-center">
+                    <i class="bi bi-info-circle me-1"></i> নিট বিক্রয়মূল্য থেকে উৎপাদন খরচ বাদ দিলেই পাবেন প্রকৃত লাভ।
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Key Pillars -->
+<div class="row g-4 mb-5">
+    <div class="col-md-3">
+        <div class="kb-card h-100 text-center">
+            <div class="kb-stat-icon green mx-auto mb-3">
+                <i class="bi bi-bar-chart-line"></i>
+            </div>
+            <h5 class="fw-bold">স্মার্ট দর তুলনা</h5>
+            <p class="text-muted small">বিভিন্ন ক্রেতার দরপ্রস্তাব ও খরচ কর্তন পাশাপাশি তুলনা করে সেরা অফার নির্বাচন করুন।</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kb-card h-100 text-center">
+            <div class="kb-stat-icon gold mx-auto mb-3">
+                <i class="bi bi-speedometer"></i>
+            </div>
+            <h5 class="fw-bold">যাচাইকৃত ওজন পরিমাপ</h5>
+            <p class="text-muted small">মোট ওজন থেকে বস্তার ওজন (Tare) বাদ দিয়ে ডিজিটাল স্কেলে পরীক্ষিত নিট ওজন নির্ধারণ।</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kb-card h-100 text-center">
+            <div class="kb-stat-icon blue mx-auto mb-3">
+                <i class="bi bi-credit-card-2-front"></i>
+            </div>
+            <h5 class="fw-bold">নিরাপদ পেমেন্ট ট্র্যাকিং</h5>
+            <p class="text-muted small">বিকাশ, নগদ বা ব্যাংক পেমেন্ট যাচাই করে স্বয়ংক্রিয় বকেয়া পাওনা হিসাব রাখা হয়।</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kb-card h-100 text-center">
+            <div class="kb-stat-icon red mx-auto mb-3">
+                <i class="bi bi-shield-shaded"></i>
+            </div>
+            <h5 class="fw-bold">স্বচ্ছ বিরোধ নিষ্পত্তি</h5>
+            <p class="text-muted small">ওজন বা মানে অমিল হলে সালিশি ও সহায়তাকারীর মাধ্যমে দ্রুত সমাধান পাওয়ার ব্যবস্থা।</p>
+        </div>
+    </div>
+</div>
+
+<!-- Agricultural Crop Price Watch -->
+<div class="kb-card mb-4">
+    <div class="kb-card-header">
+        <h4 class="kb-card-title">
+            <i class="bi bi-tags-fill text-success"></i> বাংলাদেশের প্রধান ফসলের আদর্শ বাজারদর
+        </h4>
+        <span class="text-muted small">উৎস: কৃষি বিপণন অধিদপ্তর ও পাইকারি বাজার তথ্য</span>
+    </div>
+
+    @if (crops == null)
+    {
+        <div class="text-center py-4">
+            <div class="spinner-border text-success" role="status"></div>
+            <p class="mt-2 text-muted">বাজারদর লোড হচ্ছে...</p>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var crop in crops)
+            {
+                <div class="col-6 col-md-4 col-lg-3">
+                    <div class="p-3 border rounded-3 bg-light h-100 d-flex flex-column justify-content-between">
+                        <div>
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <span class="fs-4">@(crop.IconEmoji ?? "🌾")</span>
+                                <span class="badge bg-secondary-subtle text-secondary small">@crop.Category</span>
+                            </div>
+                            <h6 class="fw-bold mb-1 text-dark">@crop.NameBn</h6>
+                            <p class="text-muted small mb-2">@crop.NameEn</p>
+                        </div>
+                        <div class="border-top pt-2">
+                            <span class="text-muted small">বাজারদর:</span>
+                            <div class="fw-bold text-success">
+                                ৳ @crop.TypicalMinPricePerKg.ToString("N1") - ৳ @crop.TypicalMaxPricePerKg.ToString("N1") /কেজি
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<CropDto>? crops;
+
+    protected override async Task OnInitializedAsync()
+    {
+        crops = await CropService.GetAllCropsAsync();
+    }
+}

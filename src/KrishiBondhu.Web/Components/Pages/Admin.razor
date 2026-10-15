@@ -1,0 +1,172 @@
+@page "/admin"
+@inject IAuditLogRepository AuditRepo
+@inject IBuyerProfileRepository BuyerRepo
+@inject IFarmerProfileRepository FarmerRepo
+@inject ICurrentUserService CurrentUser
+@inject IUnitOfWork UnitOfWork
+@inject ILocalizationService Loc
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>সিস্টেম প্রশাসন ও অডিট লগ | কৃষিবন্ধু</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h2 class="fw-bold mb-1">
+            <i class="bi bi-speedometer2 text-success me-2"></i>প্রশাসনিক নিয়ন্ত্রণ ও অডিট লগ
+        </h2>
+        <p class="text-muted small mb-0">ব্যবহারকারী যাচাইকরণ, ট্রেড লাইসেন্স অনুমোদন এবং অপরিবর্তনীয় অডিট ট্রেইল</p>
+    </div>
+    <div>
+        <span class="badge bg-danger px-3 py-2 fs-6">
+            <i class="bi bi-shield-lock me-1"></i> এডমিন কনসোল
+        </span>
+    </div>
+</div>
+
+<!-- Audit Log Trail -->
+<div class="kb-card mb-4">
+    <div class="kb-card-header">
+        <h4 class="kb-card-title">
+            <i class="bi bi-clock-history text-success"></i> সিস্টেম অডিট লগ (Audit Trail)
+        </h4>
+        <span class="text-muted small">আর্থিক ও স্ট্যাটাস পরিবর্তনের পূর্ণাঙ্গ লগ</span>
+    </div>
+
+    @if (auditLogs == null)
+    {
+        <div class="text-center py-4">
+            <div class="spinner-border text-success" role="status"></div>
+            <p class="mt-2 text-muted">অডিট লগ লোড হচ্ছে...</p>
+        </div>
+    }
+    else if (!auditLogs.Any())
+    {
+        <div class="p-4 text-center text-muted">কোনো অডিট রেকর্ড নেই।</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table kb-table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>তারিখ ও সময় (UTC)</th>
+                        <th>অ্যাকশন</th>
+                        <th>এনটিটি</th>
+                        <th>ইউজার</th>
+                        <th>ভূমিকা</th>
+                        <th>আইপি ও বিবরণ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var log in auditLogs)
+                    {
+                        <tr>
+                            <td class="small text-nowrap">@log.CreatedAtUtc.ToString("dd-MM-yyyy HH:mm:ss")</td>
+                            <td>
+                                <span class="badge bg-secondary">@log.Action</span>
+                            </td>
+                            <td><strong>@log.EntityName</strong> (#@log.EntityId)</td>
+                            <td>@(log.PerformedByUsername ?? "System")</td>
+                            <td>
+                                <span class="badge bg-info-subtle text-info">@log.PerformedByRole</span>
+                            </td>
+                            <td class="small text-muted text-break">
+                                @log.DetailsJson
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<!-- Buyer Trade License Verification Queue -->
+<div class="kb-card">
+    <div class="kb-card-header">
+        <h4 class="kb-card-title">
+            <i class="bi bi-patch-check-fill text-warning"></i> ব্যবসায়ী ট্রেড লাইসেন্স ও প্রোফাইল যাচাইকরণ
+        </h4>
+        <span class="text-muted small">প্রশাসনিক অনুমোদন ছাড়া ব্যবসায়ী 'Verified' হতে পারে না</span>
+    </div>
+
+    @if (buyers == null)
+    {
+        <div class="text-center py-4">
+            <div class="spinner-border text-success" role="status"></div>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table kb-table align-middle">
+                <thead>
+                    <tr>
+                        <th>ব্যবসা প্রতিষ্ঠানের নাম</th>
+                        <th>যোগাযোগ ব্যক্তি</th>
+                        <th>ফোন</th>
+                        <th>ব্যবসার ধরন</th>
+                        <th>ট্রেড লাইসেন্স নং</th>
+                        <th>যাচাই অবস্থা</th>
+                        <th>পদক্ষেপ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var b in buyers)
+                    {
+                        <tr>
+                            <td><strong>@b.BusinessName</strong></td>
+                            <td>@b.ContactPersonName</td>
+                            <td>@b.PhoneNumber</td>
+                            <td>@b.BusinessType</td>
+                            <td><code>@(b.TradeLicenseNumber ?? "প্রদান করা হয়নি")</code></td>
+                            <td>
+                                @if (b.IsTradeLicenseVerified)
+                                {
+                                    <span class="kb-badge kb-badge-success">
+                                        <i class="bi bi-check-circle-fill"></i> যাচাইকৃত (Verified)
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="kb-badge kb-badge-warning">
+                                        যাচাই বাকি (Unverified)
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm @(b.IsTradeLicenseVerified ? "btn-outline-danger" : "btn-success")"
+                                        @onclick="@(() => ToggleBuyerVerification(b))">
+                                    @(b.IsTradeLicenseVerified ? "অনুমোদন প্রত্যাহার" : "লাইসেন্স অনুমোদন করুন")
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private List<AuditLog>? auditLogs;
+    private List<BuyerProfile>? buyers;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var logs = await AuditRepo.GetAuditLogsAsync(null, null, 1, 50);
+        auditLogs = logs.Items.ToList();
+
+        var buyerList = await BuyerRepo.GetAllAsync();
+        buyers = buyerList.ToList();
+    }
+
+    private async Task ToggleBuyerVerification(BuyerProfile buyer)
+    {
+        buyer.IsTradeLicenseVerified = !buyer.IsTradeLicenseVerified;
+        await BuyerRepo.UpdateAsync(buyer);
+        await UnitOfWork.SaveChangesAsync();
+        StateHasChanged();
+    }
+}

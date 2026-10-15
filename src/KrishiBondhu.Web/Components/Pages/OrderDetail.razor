@@ -1,0 +1,851 @@
+@page "/orders/{OrderId:guid}"
+@inject IOrderLifecycleService OrderService
+@inject IWeighingService WeighingService
+@inject IPaymentService PaymentService
+@inject IDisputeService DisputeService
+@inject ICurrentUserService CurrentUser
+@inject ILocalizationService Loc
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>অর্ডার বিস্তারিত | কৃষিবন্ধু ডিসিশন ইঞ্জিন</PageTitle>
+
+@if (order == null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-success" role="status"></div>
+        <p class="mt-2 text-muted">অর্ডারের বিবরণ ও লেনদেন ইতিহাস লোড হচ্ছে...</p>
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <a href="orders" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> সকল অর্ডারে ফিরুন
+        </a>
+        <div class="d-flex gap-2">
+            @if (order.Status != OrderStatus.Completed && order.Status != OrderStatus.Cancelled)
+            {
+                <button class="btn btn-sm btn-outline-danger" @onclick="OpenDisputeModal">
+                    <i class="bi bi-shield-exclamation me-1"></i> বিরোধ উত্থাপন করুন
+                </button>
+            }
+            <span class="kb-badge @GetStatusBadge(order.Status) fs-6">
+                @order.Status.ToString()
+            </span>
+        </div>
+    </div>
+
+    @if (order.Status == OrderStatus.Disputed)
+    {
+        <div class="kb-alert kb-alert-danger mb-4">
+            <i class="bi bi-exclamation-octagon-fill fs-4 flex-shrink-0"></i>
+            <div>
+                <strong>এই অর্ডারে সক্রিয় বিরোধ (Dispute) চলছে!</strong>
+                বিরোধ নিষ্পত্তি না হওয়া পর্যন্ত অর্ডারটি চূড়ান্ত সম্পন্ন (Completed) করা যাবে না। নিচে বিরোধ অংশে বিস্তারিত দেখুন।
+            </div>
+        </div>
+    }
+
+    <!-- Order Timeline Visual Milestone -->
+    <div class="kb-card mb-4 p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="fw-bold mb-0">অর্ডার নম্বর: @order.OrderNumber</h4>
+            <span class="text-muted small">চুক্তি তারিখ: @order.AcceptedAtUtc.ToString("dd MMMM yyyy, hh:mm tt")</span>
+        </div>
+
+        <div class="kb-timeline">
+            <div class="kb-timeline-step completed">
+                <div class="kb-timeline-dot"><i class="bi bi-check-lg"></i></div>
+                <div class="kb-timeline-label">১. দর গৃহীত</div>
+            </div>
+            <div class="kb-timeline-step @(order.Status >= OrderStatus.AwaitingDelivery ? "completed" : "") @(order.Status == OrderStatus.AwaitingDelivery ? "active" : "")">
+                <div class="kb-timeline-dot">২</div>
+                <div class="kb-timeline-label">২. ডেলিভারি</div>
+            </div>
+            <div class="kb-timeline-step @(order.Status >= OrderStatus.DeliveredPendingConfirmation ? "completed" : "") @(order.Status == OrderStatus.DeliveredPendingConfirmation ? "active" : "")">
+                <div class="kb-timeline-dot">৩</div>
+                <div class="kb-timeline-label">৩. ওজন যাচাই</div>
+            </div>
+            <div class="kb-timeline-step @(order.Status >= OrderStatus.PaymentPending ? "completed" : "") @(order.Status == OrderStatus.PaymentPending || order.Status == OrderStatus.PaymentPartiallyReceived ? "active" : "")">
+                <div class="kb-timeline-dot">৪</div>
+                <div class="kb-timeline-label">৪. পেমেন্ট</div>
+            </div>
+            <div class="kb-timeline-step @(order.Status == OrderStatus.Completed ? "completed active" : "")">
+                <div class="kb-timeline-dot"><i class="bi bi-flag-fill"></i></div>
+                <div class="kb-timeline-label">৫. সম্পন্ন</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agreed Terms Snapshot & Financial Breakdown -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6">
+            <div class="kb-card h-100">
+                <div class="kb-card-header">
+                    <h5 class="kb-card-title">
+                        <i class="bi bi-file-earmark-lock text-success"></i> চুক্তিবদ্ধ শর্তাবলীর স্ন্যাপশট (Immutable)
+                    </h5>
+                    <span class="badge bg-secondary-subtle text-secondary small">সুরক্ষিত চুক্তি</span>
+                </div>
+
+                <div class="p-3 bg-light rounded-3 mb-3">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">ফসল ও জাত:</span>
+                        <strong>@order.CropNameBn</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">বিক্রেতা কৃষক:</span>
+                        <strong>@order.FarmerNameBn (@order.FarmerPhoneNumber)</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">ক্রেতা প্রতিষ্ঠান:</span>
+                        <strong>@order.BuyerBusinessName (@order.BuyerPhoneNumber)</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">চুক্তিবদ্ধ প্রতি কেজি দর:</span>
+                        <strong class="text-success">৳ @order.AgreedPricePerKg.ToString("N2") /কেজি</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">চুক্তিবদ্ধ পরিমাণ:</span>
+                        <strong>@order.AgreedQuantityKg.ToString("N0") কেজি</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">ডেলিভারি শর্ত:</span>
+                        <span>@order.AgreedDeliveryTerms</span>
+                    </div>
+                </div>
+
+                <div class="text-muted small">
+                    <i class="bi bi-shield-check text-success me-1"></i> দরপ্রস্তাব গ্রহণের সময় এই শর্তাবলীর স্ন্যাপশট সংরক্ষিত হয়েছে এবং পরবর্তীতে এটি একতরফা পরিবর্তনযোগ্য নয়।
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="kb-card h-100">
+                <div class="kb-card-header">
+                    <h5 class="kb-card-title">
+                        <i class="bi bi-cash-coin text-success"></i> আর্থিক হিসাব ও বকেয়া বিবরণ
+                    </h5>
+                    <span class="badge bg-warning-subtle text-warning fw-bold small">লাইভ ব্যালান্স</span>
+                </div>
+
+                <div class="kb-calc-box mb-3">
+                    <div class="kb-calc-row">
+                        <span>কার্যকর নিট পরিমাণ:</span>
+                        <strong>@(order.VerifiedNetQuantityKg?.ToString("N2") ?? order.AgreedQuantityKg.ToString("N2")) কেজি</strong>
+                    </div>
+                    <div class="kb-calc-row">
+                        <span>মোট বিক্রয় দর (Gross Value):</span>
+                        <strong>@Loc.FormatCurrency(order.TotalGrossAmount)</strong>
+                    </div>
+                    <div class="kb-calc-row deduction">
+                        <span>চুক্তিবদ্ধ খরচ কর্তন (পরিবহন/কুলি/বস্তা/ফি):</span>
+                        <span>- @Loc.FormatCurrency(order.TotalAgreedDeductions)</span>
+                    </div>
+                    <div class="kb-calc-row total">
+                        <span>কৃষকের মোট নিট প্রাপ্য:</span>
+                        <span class="text-success fw-bold">@Loc.FormatCurrency(order.NetPayableToFarmer)</span>
+                    </div>
+                    <div class="kb-calc-row">
+                        <span>যাচাইকৃত প্রাপ্ত টাকা:</span>
+                        <strong class="text-primary">@Loc.FormatCurrency(order.VerifiedPaidAmount)</strong>
+                    </div>
+                    <div class="kb-calc-row total text-danger">
+                        <span>বর্তমান বকেয়া পাওনা (Outstanding Balance):</span>
+                        <span class="text-danger fw-bold">@Loc.FormatCurrency(order.OutstandingBalance)</span>
+                    </div>
+                </div>
+
+                @if (order.OutstandingBalance <= 0 && order.Status != OrderStatus.Completed && order.Status != OrderStatus.Disputed)
+                {
+                    <div class="alert alert-success d-flex align-items-center justify-content-between p-2 mb-0">
+                        <span class="small"><i class="bi bi-check2-all me-1"></i> সম্পূর্ণ অর্থ পরিশোধ ও যাচাই সম্পন্ন!</span>
+                        <button class="btn btn-sm btn-success fw-bold" @onclick="@(() => TransitionStatus(OrderStatus.Completed))">
+                            লেনদেন সমাপ্ত নিশ্চিত করুন
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 1: Verified Weighing & Quantity Verification -->
+    <div class="kb-card mb-4">
+        <div class="kb-card-header">
+            <h4 class="kb-card-title">
+                <i class="bi bi-speedometer2 text-success"></i> ডিজিটাল স্কেল ওজন পরিমাপ ও যাচাইকরণ
+            </h4>
+            <button class="btn btn-sm btn-kb-outline" @onclick="OpenWeighingModal">
+                <i class="bi bi-plus-lg me-1"></i> নতুন ওজন রেকর্ড করুন
+            </button>
+        </div>
+
+        <p class="text-muted small mb-3">
+            সূত্র: <strong>প্রকৃত নিট ওজন = মোট ওজন (Gross) − বস্তা/পাত্রের খালি ওজন (Tare)</strong>। উভয় পক্ষ ডিজিটাল ওজন যাচাই ও অনুমোদন করার পরই চূড়ান্ত বিলিং সমন্বয় হয়।
+        </p>
+
+        @if (!order.WeighingRecords.Any())
+        {
+            <div class="p-4 bg-light rounded-3 text-center text-muted">
+                <i class="bi bi-scale fs-2 text-secondary d-block mb-2"></i>
+                এখনো কোনো ওজন পরিমাপের রেকর্ড নেই। ফসল হস্তান্তরকালে ডিজিটাল স্কেল দিয়ে ওজন রেকর্ড করুন।
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table kb-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>ক্রমিক</th>
+                            <th>মোট ওজন (Gross)</th>
+                            <th>বস্তার ওজন (Tare)</th>
+                            <th>নিট ওজন (Net)</th>
+                            <th>পরিমাপ কেন্দ্র / স্কেল</th>
+                            <th>কৃষক স্বীকৃতি</th>
+                            <th>ক্রেতা স্বীকৃতি</th>
+                            <th>অবস্থা</th>
+                            <th>পদক্ষেপ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var w in order.WeighingRecords.OrderBy(x => x.SequenceNumber))
+                        {
+                            <tr>
+                                <td>#@w.SequenceNumber</td>
+                                <td>@w.GrossWeight.ToString("N2") @w.Unit</td>
+                                <td class="text-secondary">- @w.TareWeight.ToString("N2") @w.Unit</td>
+                                <td><strong class="text-success fs-6">@w.NetWeight.ToString("N2") @w.Unit</strong> (@w.NetWeightInKg.ToString("N0") কেজি)</td>
+                                <td>
+                                    <span class="d-block fw-semibold small">@w.CollectionPointName</span>
+                                    <span class="text-muted" style="font-size: 0.75rem;">স্কেল: @(w.ScaleIdentifier ?? "N/A")</span>
+                                </td>
+                                <td>
+                                    @if (w.IsFarmerConfirmed)
+                                    {
+                                        <span class="badge bg-success-subtle text-success"><i class="bi bi-check-circle"></i> স্বীকৃত</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning">অপেক্ষমাণ</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (w.IsBuyerConfirmed)
+                                    {
+                                        <span class="badge bg-success-subtle text-success"><i class="bi bi-check-circle"></i> স্বীকৃত</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning">অপেক্ষমাণ</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="kb-badge @(w.Status == WeighingStatus.Confirmed ? "kb-badge-success" : "kb-badge-warning")">
+                                        @w.Status.ToString()
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (w.Status != WeighingStatus.Confirmed)
+                                    {
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-success" @onclick="@(() => ConfirmWeighing(w.Id, true))" title="ওজন অনুমোদন করুন">
+                                                <i class="bi bi-check-lg"></i> অনুমোদন
+                                            </button>
+                                            <button class="btn btn-outline-danger" @onclick="@(() => ConfirmWeighing(w.Id, false))" title="বিরোধ উত্থাপন করুন">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-success small fw-bold"><i class="bi bi-patch-check-fill"></i> চূড়ান্ত</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <!-- Section 2: Direct Payment Tracking & Verification -->
+    <div class="kb-card mb-4">
+        <div class="kb-card-header">
+            <h4 class="kb-card-title">
+                <i class="bi bi-credit-card-2-front-fill text-success"></i> সরাসরি পেমেন্ট ট্র্যাকিং ও যাচাইকরণ
+            </h4>
+            @if (order.OutstandingBalance > 0)
+            {
+                <button class="btn btn-sm btn-kb-accent text-dark fw-bold" @onclick="OpenPaymentModal">
+                    <i class="bi bi-plus-lg me-1"></i> পেমেন্ট জমা দিন
+                </button>
+            }
+        </div>
+
+        <div class="alert alert-info py-2 small mb-3">
+            <i class="bi bi-shield-exclamation me-1"></i>
+            <strong>নিরাপত্তা নীতি:</strong> ক্রেতার দেওয়া ট্রানজ্যাকশন আইডি বা ভাউচার সরাসরি 'যাচাইকৃত' হবে না। প্রাপক কৃষক বা দায়িত্বপ্রাপ্ত কর্মকর্তা নিজ অ্যাকাউন্টে অর্থপ্রাপ্তি যাচাই করে অনুমোদন করলেই কেবল বকেয়া বাকি সমন্বয় হবে।
+        </div>
+
+        @if (!order.PaymentRecords.Any())
+        {
+            <div class="p-4 bg-light rounded-3 text-center text-muted">
+                <i class="bi bi-cash-stack fs-2 text-secondary d-block mb-2"></i>
+                এখনো কোনো পেমেন্ট রেকর্ড জমা পড়েনি।
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table kb-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>তারিখ</th>
+                            <th>পদ্ধতি</th>
+                            <th>টাকার পরিমাণ</th>
+                            <th>ট্রানজ্যাকশন আইডি (TrxID)</th>
+                            <th>প্রেরক / প্রাপক</th>
+                            <th>যাচাই অবস্থা</th>
+                            <th>পদক্ষেপ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in order.PaymentRecords.OrderByDescending(x => x.PaymentDateUtc))
+                        {
+                            <tr>
+                                <td>@p.PaymentDateUtc.ToString("dd MMM, hh:mm tt")</td>
+                                <td>
+                                    <span class="badge bg-secondary-subtle text-secondary">@p.Method</span>
+                                </td>
+                                <td><strong class="text-success fs-6">@Loc.FormatCurrency(p.Amount)</strong></td>
+                                <td><code class="fw-bold">@p.TransactionReference</code></td>
+                                <td class="small text-muted">
+                                    @(p.SenderAccountOrPhone ?? "N/A") ➔ @(p.ReceiverAccountOrPhone ?? "N/A")
+                                </td>
+                                <td>
+                                    <span class="kb-badge @(p.Status == PaymentStatus.Paid ? "kb-badge-success" : p.Status == PaymentStatus.PendingVerification ? "kb-badge-warning" : "kb-badge-danger")">
+                                        @(p.Status == PaymentStatus.Paid ? "যাচাইকৃত (Paid)" : p.Status == PaymentStatus.PendingVerification ? "যাচাইকরণ বাকি" : "ব্যর্থ/প্রত্যাখ্যাত")
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (p.Status == PaymentStatus.PendingVerification)
+                                    {
+                                        <button class="btn btn-sm btn-success fw-bold" @onclick="@(() => VerifyPayment(p.Id, true))">
+                                            <i class="bi bi-check-circle me-1"></i> প্রাপ্তি নিশ্চিত করুন
+                                        </button>
+                                    }
+                                    else if (p.Status == PaymentStatus.Paid)
+                                    {
+                                        <span class="text-success small fw-semibold">
+                                            <i class="bi bi-check2-all"></i> পরিশোধিত
+                                        </span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <!-- Section 3: Disputes Mediation Portal -->
+    <div class="kb-card mb-4">
+        <div class="kb-card-header">
+            <h4 class="kb-card-title">
+                <i class="bi bi-shield-shaded text-danger"></i> বিরোধ ও সালিশি রেকর্ড
+            </h4>
+        </div>
+
+        @if (!order.Disputes.Any())
+        {
+            <div class="p-3 bg-light rounded-3 text-muted small">
+                <i class="bi bi-check-circle text-success me-1"></i> এই অর্ডারে কোনো বিরোধ নেই। লেনদেন স্বাভাবিকভাবে চলছে।
+            </div>
+        }
+        else
+        {
+            <div class="d-flex flex-column gap-3">
+                @foreach (var d in order.Disputes)
+                {
+                    <div class="p-3 border rounded-3 @(d.Status == DisputeStatus.Resolved ? "bg-light border-success" : "bg-warning-subtle border-warning")">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold text-dark">
+                                <i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>
+                                বিরোধ নম্বর: @d.DisputeNumber (@d.Reason)
+                            </span>
+                            <span class="kb-badge @(d.Status == DisputeStatus.Resolved ? "kb-badge-success" : "kb-badge-danger")">
+                                @d.Status.ToString()
+                            </span>
+                        </div>
+                        <p class="mb-2 text-dark">@d.Description</p>
+                        <div class="small text-muted mb-2">
+                            উত্থাপনকারী: <strong>@d.RaisedByName (@d.RaisedByRole)</strong> | তারিখ: @d.CreatedAtUtc.ToString("dd MMM yyyy")
+                        </div>
+
+                        @if (d.Status == DisputeStatus.Resolved)
+                        {
+                            <div class="p-2 bg-white rounded border text-success small">
+                                <strong>মীমাংসা নোট:</strong> @d.ResolutionNotes | সমন্বয়: @Loc.FormatCurrency(d.FinalAdjustedAmount ?? 0)
+                            </div>
+                        }
+                        else if (CurrentUser.Role == UserRole.Administrator || CurrentUser.Role == UserRole.SupportAgent)
+                        {
+                            <div class="border-top pt-2 mt-2">
+                                <button class="btn btn-sm btn-primary" @onclick="@(() => OpenResolveDisputeModal(d.Id))">
+                                    <i class="bi bi-gavel me-1"></i> বিরোধ নিষ্পত্তি করুন
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+<!-- Modal 1: Record Weighing Modal -->
+@if (showWeighingModal)
+{
+    <div class="kb-modal-backdrop">
+        <div class="kb-modal-content">
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <h4 class="fw-bold mb-0 text-success">
+                    <i class="bi bi-speedometer me-2"></i>ডিজিটাল স্কেল ওজন পরিমাপ রেকর্ড
+                </h4>
+                <button type="button" class="btn-close" @onclick="@(() => showWeighingModal = false)"></button>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-6">
+                    <label class="form-label">মোট ওজন (Gross Weight) <span class="text-danger">*</span></label>
+                    <input type="number" step="0.5" class="form-control" @bind="weighingModel.GrossWeight" placeholder="যেমন: ২০৫০" />
+                </div>
+                <div class="col-6">
+                    <label class="form-label">বস্তা/পাত্রের ওজন (Tare Weight) <span class="text-danger">*</span></label>
+                    <input type="number" step="0.5" class="form-control" @bind="weighingModel.TareWeight" placeholder="যেমন: ৫০" />
+                </div>
+                <div class="col-12">
+                    <div class="p-3 bg-light rounded text-center">
+                        <span class="text-muted small d-block">স্বয়ংক্রিয় হিসাবকৃত নিট ওজন (Net = Gross - Tare):</span>
+                        <h3 class="fw-bold text-success mb-0">
+                            @Math.Max(0, weighingModel.GrossWeight - weighingModel.TareWeight).ToString("N2") কেজি
+                        </h3>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">পরিমাপের স্থান / কেন্দ্র</label>
+                    <input type="text" class="form-control" @bind="weighingModel.CollectionPointName" placeholder="যেমন: মহাস্থান হাট কৃষক শেড" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">স্কেল নম্বর / বিএসটিআই ক্যালিবারেশন</label>
+                    <input type="text" class="form-control" @bind="weighingModel.ScaleIdentifier" placeholder="যেমন: DIGI-SC-202 (Valid 2027)" />
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(weighingErrorMessage))
+            {
+                <div class="alert alert-danger py-2 small mb-3">@weighingErrorMessage</div>
+            }
+
+            <div class="d-flex justify-content-end gap-2 border-top pt-3">
+                <button type="button" class="btn btn-outline-secondary" @onclick="@(() => showWeighingModal = false)">বাতিল</button>
+                <button type="button" class="btn btn-kb-primary" @onclick="SubmitWeighing" disabled="@isActionBusy">
+                    ওজন সংরক্ষণ করুন
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal 2: Record Payment Modal -->
+@if (showPaymentModal)
+{
+    <div class="kb-modal-backdrop">
+        <div class="kb-modal-content">
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <h4 class="fw-bold mb-0 text-success">
+                    <i class="bi bi-wallet2 me-2"></i>পেমেন্ট ট্রানজ্যাকশন জমা দিন
+                </h4>
+                <button type="button" class="btn-close" @onclick="@(() => showPaymentModal = false)"></button>
+            </div>
+
+            <div class="p-2 bg-light rounded mb-3 small">
+                মোট প্রদেয়: <strong>@Loc.FormatCurrency(order!.NetPayableToFarmer)</strong> | বকেয়া পাওনা: <strong class="text-danger">@Loc.FormatCurrency(order.OutstandingBalance)</strong>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">পেমেন্ট মাধ্যম</label>
+                    <select class="form-select" @bind="paymentModel.Method">
+                        <option value="@PaymentMethod.bKash">বিকাশ (bKash)</option>
+                        <option value="@PaymentMethod.Nagad">নগদ (Nagad)</option>
+                        <option value="@PaymentMethod.Rocket">রকেট (Rocket)</option>
+                        <option value="@PaymentMethod.BankTransfer">ব্যাংক ট্রান্সফার (Bank Transfer)</option>
+                        <option value="@PaymentMethod.CashOnDelivery">ক্যাশ অন ডেলিভারি (Cash)</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">টাকার পরিমাণ (৳) <span class="text-danger">*</span></label>
+                    <input type="number" step="1" class="form-control" @bind="paymentModel.Amount" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label">ট্রানজ্যাকশন আইডি (TrxID) বা ব্যাংক ভাউচার নম্বর <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" @bind="paymentModel.TransactionReference" placeholder="যেমন: 9J47AB89KL বা SLIP-4490" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">প্রেরক মোবাইল/অ্যাকাউন্ট</label>
+                    <input type="text" class="form-control" @bind="paymentModel.SenderAccountOrPhone" placeholder="018XXXXXXXX" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">প্রাপক মোবাইল/অ্যাকাউন্ট</label>
+                    <input type="text" class="form-control" @bind="paymentModel.ReceiverAccountOrPhone" placeholder="017XXXXXXXX" />
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(paymentErrorMessage))
+            {
+                <div class="alert alert-danger py-2 small mb-3">@paymentErrorMessage</div>
+            }
+
+            <div class="d-flex justify-content-end gap-2 border-top pt-3">
+                <button type="button" class="btn btn-outline-secondary" @onclick="@(() => showPaymentModal = false)">বাতিল</button>
+                <button type="button" class="btn btn-kb-primary" @onclick="SubmitPayment" disabled="@isActionBusy">
+                    পেমেন্ট তথ্য জমা দিন
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal 3: Raise Dispute Modal -->
+@if (showDisputeModal)
+{
+    <div class="kb-modal-backdrop">
+        <div class="kb-modal-content">
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <h4 class="fw-bold mb-0 text-danger">
+                    <i class="bi bi-shield-exclamation me-2"></i>বিরোধ উত্থাপন করুন
+                </h4>
+                <button type="button" class="btn-close" @onclick="@(() => showDisputeModal = false)"></button>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">বিরোধের কারণ</label>
+                <select class="form-select" @bind="disputeModel.Reason">
+                    <option value="@DisputeReason.QuantityMismatch">ওজন বা পরিমাপে গরমিল (Quantity Mismatch)</option>
+                    <option value="@DisputeReason.QualityDefect">ফসলের মানে সমস্যা (Quality Defect)</option>
+                    <option value="@DisputeReason.PriceDeductionDispute">অননুমোদিত খরচ কর্তন (Price Deduction Dispute)</option>
+                    <option value="@DisputeReason.DeliveryDelay">ডেলিভারিতে বিলম্ব (Delivery Delay)</option>
+                    <option value="@DisputeReason.PaymentDefault">পেমেন্ট বকেয়া বা সমস্যা (Payment Default)</option>
+                    <option value="@DisputeReason.Other">অন্যান্য কারণ (Other)</option>
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">সমস্যার বিস্তারিত বিবরণ দিন <span class="text-danger">*</span></label>
+                <textarea class="form-control" rows="3" @bind="disputeModel.Description" placeholder="সমস্যার বিবরণ লিখুন..."></textarea>
+            </div>
+
+            @if (!string.IsNullOrEmpty(disputeErrorMessage))
+            {
+                <div class="alert alert-danger py-2 small mb-3">@disputeErrorMessage</div>
+            }
+
+            <div class="d-flex justify-content-end gap-2 border-top pt-3">
+                <button type="button" class="btn btn-outline-secondary" @onclick="@(() => showDisputeModal = false)">বাতিল</button>
+                <button type="button" class="btn btn-danger" @onclick="SubmitDispute" disabled="@isActionBusy">
+                    বিরোধ নথিভুক্ত করুন
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal 4: Resolve Dispute Modal -->
+@if (showResolveModal)
+{
+    <div class="kb-modal-backdrop">
+        <div class="kb-modal-content">
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <h4 class="fw-bold mb-0 text-primary">
+                    <i class="bi bi-gavel me-2"></i>বিরোধ নিষ্পত্তি ও সমন্বয়
+                </h4>
+                <button type="button" class="btn-close" @onclick="@(() => showResolveModal = false)"></button>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">নিষ্পত্তির সিদ্ধান্ত</label>
+                <select class="form-select" @bind="resolveModel.IsResolved">
+                    <option value="true">মীমাংসা ও সমন্বয় অনুমোদন (Resolved)</option>
+                    <option value="false">বিরোধ ভিত্তিহীন ও বাতিল (Rejected)</option>
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">সমন্বয় টাকার পরিমাণ (যদি কর্তন বা ক্ষতিপূরণ থাকে)</label>
+                <input type="number" step="1" class="form-control" @bind="resolveModel.FinalAdjustedAmount" placeholder="০" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">মীমাংসার নোট ও বিস্তারিত রায় <span class="text-danger">*</span></label>
+                <textarea class="form-control" rows="3" @bind="resolveModel.ResolutionNotes" placeholder="উভয় পক্ষের সম্মতি ও তদন্তের সারসংক্ষেপ..."></textarea>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 border-top pt-3">
+                <button type="button" class="btn btn-outline-secondary" @onclick="@(() => showResolveModal = false)">বাতিল</button>
+                <button type="button" class="btn btn-primary" @onclick="SubmitResolveDispute" disabled="@isActionBusy">
+                    রায় কার্যকর করুন
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid OrderId { get; set; }
+
+    private OrderDto? order;
+    private bool isActionBusy;
+
+    // Weighing Modal state
+    private bool showWeighingModal;
+    private RecordWeighingDto weighingModel = new();
+    private string? weighingErrorMessage;
+
+    // Payment Modal state
+    private bool showPaymentModal;
+    private RecordPaymentDto paymentModel = new();
+    private string? paymentErrorMessage;
+
+    // Dispute Modal state
+    private bool showDisputeModal;
+    private RaiseDisputeDto disputeModel = new();
+    private string? disputeErrorMessage;
+
+    // Resolve Dispute Modal state
+    private bool showResolveModal;
+    private ResolveDisputeDto resolveModel = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrder();
+    }
+
+    private async Task LoadOrder()
+    {
+        order = await OrderService.GetOrderByIdAsync(OrderId);
+    }
+
+    private void OpenWeighingModal()
+    {
+        weighingModel = new RecordWeighingDto
+        {
+            OrderId = OrderId,
+            GrossWeight = order?.EffectiveQuantityKg ?? 2000,
+            TareWeight = 40,
+            Unit = WeightUnit.Kg,
+            CollectionPointName = "মহাস্থান হাট ওজন পয়েন্ট",
+            District = "বগুড়া (Bogura)",
+            Upazila = "শিবগঞ্জ (Shibganj)",
+            ScaleIdentifier = "DIGI-SC-202"
+        };
+        weighingErrorMessage = null;
+        showWeighingModal = true;
+    }
+
+    private async Task SubmitWeighing()
+    {
+        isActionBusy = true;
+        weighingErrorMessage = null;
+        try
+        {
+            var result = await WeighingService.RecordWeighingAsync(weighingModel);
+            if (result.Succeeded)
+            {
+                showWeighingModal = false;
+                await LoadOrder();
+            }
+            else
+            {
+                weighingErrorMessage = result.Errors.FirstOrDefault() ?? "ত্রুটি হয়েছে।";
+            }
+        }
+        catch (Exception ex)
+        {
+            weighingErrorMessage = ex.Message;
+        }
+        finally
+        {
+            isActionBusy = false;
+        }
+    }
+
+    private async Task ConfirmWeighing(Guid recordId, bool isAgreed)
+    {
+        isActionBusy = true;
+        try
+        {
+            await WeighingService.ConfirmWeighingAsync(recordId, isAgreed);
+            await LoadOrder();
+        }
+        finally
+        {
+            isActionBusy = false;
+        }
+    }
+
+    private void OpenPaymentModal()
+    {
+        paymentModel = new RecordPaymentDto
+        {
+            OrderId = OrderId,
+            Amount = order?.OutstandingBalance ?? 0,
+            Method = PaymentMethod.bKash,
+            TransactionReference = $"TRX-{DateTime.UtcNow:MMdd}-{new Random().Next(1000, 9999)}"
+        };
+        paymentErrorMessage = null;
+        showPaymentModal = true;
+    }
+
+    private async Task SubmitPayment()
+    {
+        isActionBusy = true;
+        paymentErrorMessage = null;
+        try
+        {
+            var result = await PaymentService.RecordDirectPaymentAsync(paymentModel);
+            if (result.Succeeded)
+            {
+                showPaymentModal = false;
+                await LoadOrder();
+            }
+            else
+            {
+                paymentErrorMessage = result.Errors.FirstOrDefault() ?? "পেমেন্ট জমা দিতে ত্রুটি হয়েছে।";
+            }
+        }
+        catch (Exception ex)
+        {
+            paymentErrorMessage = ex.Message;
+        }
+        finally
+        {
+            isActionBusy = false;
+        }
+    }
+
+    private async Task VerifyPayment(Guid paymentId, bool isApproved)
+    {
+        isActionBusy = true;
+        try
+        {
+            var dto = new VerifyPaymentDto
+            {
+                PaymentRecordId = paymentId,
+                IsApproved = isApproved,
+                VerificationNotes = isApproved ? "অ্যাকাউন্টে টাকা জমা যাচাইপূর্বক নিশ্চিত করা হলো।" : "টাকা জমা পাওয়া যায়নি।"
+            };
+            await PaymentService.VerifyPaymentAsync(dto);
+            await LoadOrder();
+        }
+        finally
+        {
+            isActionBusy = false;
+        }
+    }
+
+    private void OpenDisputeModal()
+    {
+        disputeModel = new RaiseDisputeDto
+        {
+            OrderId = OrderId,
+            Reason = DisputeReason.QuantityMismatch,
+            Description = "ওজন পরিমাপে আনুমানিক ২০ কেজি কম পাওয়া গেছে।"
+        };
+        disputeErrorMessage = null;
+        showDisputeModal = true;
+    }
+
+    private async Task SubmitDispute()
+    {
+        isActionBusy = true;
+        disputeErrorMessage = null;
+        try
+        {
+            var result = await DisputeService.RaiseDisputeAsync(disputeModel);
+            if (result.Succeeded)
+            {
+                showDisputeModal = false;
+                await LoadOrder();
+            }
+            else
+            {
+                disputeErrorMessage = result.Errors.FirstOrDefault() ?? "বিরোধ তৈরি ব্যর্থ হয়েছে।";
+            }
+        }
+        catch (Exception ex)
+        {
+            disputeErrorMessage = ex.Message;
+        }
+        finally
+        {
+            isActionBusy = false;
+        }
+    }
+
+    private void OpenResolveDisputeModal(Guid disputeId)
+    {
+        resolveModel = new ResolveDisputeDto
+        {
+            DisputeId = disputeId,
+            IsResolved = true,
+            ResolutionNotes = "উভয় পক্ষের উপস্থিতিতে পুনঃপরিমাপ করা হয়েছে এবং চূড়ান্ত হিসাব সমন্বয় করা হলো।",
+            FinalAdjustedAmount = 0
+        };
+        showResolveModal = true;
+    }
+
+    private async Task SubmitResolveDispute()
+    {
+        isActionBusy = true;
+        try
+        {
+            await DisputeService.ResolveDisputeAsync(resolveModel);
+            showResolveModal = false;
+            await LoadOrder();
+        }
+        finally
+        {
+            isActionBusy = false;
+        }
+    }
+
+    private async Task TransitionStatus(OrderStatus newStatus)
+    {
+        isActionBusy = true;
+        try
+        {
+            await OrderService.TransitionOrderStatusAsync(OrderId, newStatus);
+            await LoadOrder();
+        }
+        finally
+        {
+            isActionBusy = false;
+        }
+    }
+
+    private string GetStatusBadge(OrderStatus status) => status switch
+    {
+        OrderStatus.Completed => "kb-badge-success",
+        OrderStatus.PaymentPending or OrderStatus.PaymentPartiallyReceived => "kb-badge-warning",
+        OrderStatus.AwaitingDelivery or OrderStatus.OfferAccepted => "kb-badge-info",
+        OrderStatus.Disputed => "kb-badge-danger",
+        _ => "kb-badge-neutral"
+    };
+}

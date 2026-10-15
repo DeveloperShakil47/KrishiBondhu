@@ -1,0 +1,227 @@
+@page "/complaints/track"
+@rendermode InteractiveServer
+@inject IConsumerComplaintService ComplaintService
+@inject NavigationManager Nav
+
+<PageTitle>ভোক্তা অভিযোগ ট্র্যাকিং ও অগ্রগতি — কৃষিবন্ধু</PageTitle>
+
+<div class="container py-4" style="max-width: 800px;">
+    <!-- Breadcrumb -->
+    <div class="mb-3">
+        <a href="complaints/submit" class="text-decoration-none text-success fw-semibold">
+            <i class="bi bi-arrow-left me-1"></i> অভিযোগ দাখিল পেজে যান
+        </a>
+    </div>
+
+    <!-- Search Card -->
+    <div class="card border-0 shadow-sm mb-4" style="border-radius: 18px;">
+        <div class="card-header bg-white border-0 pt-4 px-4 pb-2">
+            <div class="d-flex align-items-center gap-3">
+                <div class="p-3 bg-primary text-white rounded-circle">
+                    <i class="bi bi-search fs-4"></i>
+                </div>
+                <div>
+                    <h1 class="h4 fw-bold text-dark mb-1">🔍 অভিযোগের অগ্রগতি অনুসন্ধান</h1>
+                    <p class="text-muted small mb-0">আপনার দাখিলকৃত ট্র্যাকিং নম্বর এবং মোবাইল নম্বর প্রদান করে বর্তমান অবস্থা যাচাই করুন</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body p-4">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label small fw-bold">ট্র্যাকিং নম্বর (Tracking Number) <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control text-uppercase font-monospace" placeholder="যেমন: CMP-2026-00001" @bind="searchTrackingNumber" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small fw-bold">দাখিলকৃত মোবাইল নম্বর <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" placeholder="০১XXXXXXXXX" @bind="searchPhone" />
+                </div>
+                <div class="col-12 text-end">
+                    <button class="btn btn-primary fw-bold px-4 py-2 rounded-pill shadow-sm" @onclick="HandleTrack" disabled="@isSearching">
+                        @if (isSearching)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>অনুসন্ধান হচ্ছে...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-search me-1"></i>
+                            <span>অবস্থা অনুসন্ধান করুন</span>
+                        }
+                    </button>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(searchErrorMessage))
+            {
+                <div class="alert alert-danger mt-3 mb-0">
+                    <i class="bi bi-exclamation-circle-fill me-2"></i> @searchErrorMessage
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (trackingResult != null)
+    {
+        <!-- Tracking Result Card -->
+        <div class="card border-0 shadow-sm" style="border-radius: 18px;">
+            <div class="card-header bg-white border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="badge bg-light text-secondary border font-monospace px-3 py-1">@trackingResult.TrackingNumber</span>
+                    <h2 class="h5 fw-bold text-dark mt-2 mb-0">অভিযোগের বর্তমান অবস্থা</h2>
+                </div>
+                <div>
+                    <span class="badge @GetStatusBadgeClass(trackingResult.Status) px-3 py-2 rounded-pill fs-6">
+                        @trackingResult.StatusDescriptionBn
+                    </span>
+                </div>
+            </div>
+
+            <div class="card-body p-4">
+                <!-- Status Timeline Bar -->
+                <div class="p-3 bg-light rounded-3 mb-4">
+                    <div class="d-flex justify-content-between text-center small position-relative">
+                        <div class="flex-grow-1 @(trackingResult.Status >= ComplaintStatus.Submitted ? "text-success fw-bold" : "text-muted")">
+                            <i class="bi @(trackingResult.Status >= ComplaintStatus.Submitted ? "bi-check-circle-fill" : "bi-circle") d-block fs-5 mb-1"></i>
+                            দাখিলকৃত
+                        </div>
+                        <div class="flex-grow-1 @(trackingResult.Status >= ComplaintStatus.UnderReview ? "text-primary fw-bold" : "text-muted")">
+                            <i class="bi @(trackingResult.Status >= ComplaintStatus.UnderReview ? "bi-check-circle-fill" : "bi-circle") d-block fs-5 mb-1"></i>
+                            পর্যালোচনাধীন
+                        </div>
+                        <div class="flex-grow-1 @(trackingResult.Status >= ComplaintStatus.Resolved ? "text-success fw-bold" : (trackingResult.Status == ComplaintStatus.Rejected ? "text-danger fw-bold" : "text-muted"))">
+                            <i class="bi @(trackingResult.Status >= ComplaintStatus.Resolved ? "bi-check-circle-fill" : (trackingResult.Status == ComplaintStatus.Rejected ? "bi-x-circle-fill" : "bi-circle")) d-block fs-5 mb-1"></i>
+                            @(trackingResult.Status == ComplaintStatus.Rejected ? "প্রত্যাখ্যাত" : "মীমাংসা / সম্পন্ন")
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Complaint Summary Grid -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="p-3 border rounded-3 h-100 bg-white">
+                            <div class="text-muted small">অভিযোগকারী:</div>
+                            <div class="fw-bold">@trackingResult.MaskedComplainantName</div>
+                            <div class="text-muted small mt-2">দাখিলের তারিখ:</div>
+                            <div class="fw-semibold">@trackingResult.SubmissionDateUtc.ToString("dd MMMM yyyy, hh:mm tt")</div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="p-3 border rounded-3 h-100 bg-white">
+                            <div class="text-muted small">অভিযুক্ত প্রতিষ্ঠান:</div>
+                            <div class="fw-bold text-dark">@trackingResult.ShopOrBusinessName</div>
+                            <div class="text-muted small mt-2">অবস্থান:</div>
+                            <div class="fw-semibold">@trackingResult.District, @trackingResult.Upazila (@(trackingResult.SellerType == MarketType.Wholesale ? "পাইকারি" : "খুচরা"))</div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="p-3 border rounded-3 h-100 bg-white">
+                            <div class="text-muted small">পণ্য ও পরিমাণ:</div>
+                            <div class="fw-bold text-success">@trackingResult.CropNameBn (@trackingResult.QuantityPurchased @trackingResult.ReportedUnit)</div>
+                            <div class="text-muted small mt-2">ক্রয়ের সময়:</div>
+                            <div class="fw-semibold">@trackingResult.PurchaseDateTime.ToString("dd MMM yyyy, hh:mm tt")</div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="p-3 border rounded-3 h-100 bg-white">
+                            <div class="text-muted small">দাবিকৃত বা পরিশোধিত মোট দর:</div>
+                            <div class="fw-bold text-danger">৳@trackingResult.ActualPriceCharged.ToString("F2")</div>
+                            <div class="text-muted small mt-2">হিসাবকৃত প্রতি কেজি/একক দর:</div>
+                            <div class="fw-bold text-dark">৳@trackingResult.NormalizedPricePerUnit.ToString("F2") / @trackingResult.StandardUnit</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Neutral Comparative Analysis Box -->
+                <div class="card bg-light border-0 p-3 mb-3" style="border-radius: 14px;">
+                    <h6 class="fw-bold text-dark mb-2">
+                        <i class="bi bi-file-earmark-bar-graph text-primary me-1"></i> নিরপেক্ষ বাজার বিশ্লেষণ নোট:
+                    </h6>
+                    <div class="small text-secondary bg-white p-3 rounded border">
+                        @(trackingResult.ComparisonAnalysisNotes ?? "তথ্য যাচাই চলছে...")
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(trackingResult.PublicStatusMessage))
+                {
+                    <div class="alert alert-info border-0 shadow-sm p-3 mb-0" style="border-radius: 14px;">
+                        <div class="fw-bold small mb-1">
+                            <i class="bi bi-chat-left-dots text-primary me-1"></i> কর্মকর্তা বা পর্যালোচকের সিদ্ধান্ত বার্তা:
+                        </div>
+                        <div class="small text-dark">
+                            @trackingResult.PublicStatusMessage
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string searchTrackingNumber = string.Empty;
+    private string searchPhone = string.Empty;
+    private bool isSearching = false;
+    private string? searchErrorMessage;
+    private ComplaintTrackingResultDto? trackingResult;
+
+    [SupplyParameterFromQuery(Name = "tracking")]
+    public string? QueryTracking { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrWhiteSpace(QueryTracking))
+        {
+            searchTrackingNumber = QueryTracking;
+        }
+    }
+
+    private async Task HandleTrack()
+    {
+        if (string.IsNullOrWhiteSpace(searchTrackingNumber) || string.IsNullOrWhiteSpace(searchPhone))
+        {
+            searchErrorMessage = "অনুগ্রহ করে ট্র্যাকিং নম্বর এবং মোবাইল নম্বর উভয়ই লিখুন।";
+            return;
+        }
+
+        isSearching = true;
+        searchErrorMessage = null;
+        trackingResult = null;
+
+        try
+        {
+            var result = await ComplaintService.TrackComplaintAsync(searchTrackingNumber.Trim(), searchPhone.Trim());
+            if (result.IsSuccess)
+            {
+                trackingResult = result.Value;
+            }
+            else
+            {
+                searchErrorMessage = result.ErrorMessage;
+            }
+        }
+        catch (Exception ex)
+        {
+            searchErrorMessage = $"ত্রুটি: {ex.Message}";
+        }
+        finally
+        {
+            isSearching = false;
+        }
+    }
+
+    private static string GetStatusBadgeClass(ComplaintStatus status) => status switch
+    {
+        ComplaintStatus.Submitted => "bg-secondary text-white",
+        ComplaintStatus.UnderReview => "bg-primary text-white",
+        ComplaintStatus.AwaitingInformation => "bg-warning text-dark",
+        ComplaintStatus.Resolved => "bg-success text-white",
+        ComplaintStatus.Rejected => "bg-danger text-white",
+        ComplaintStatus.ReferredToAuthority => "bg-dark text-white",
+        _ => "bg-secondary text-white"
+    };
+}

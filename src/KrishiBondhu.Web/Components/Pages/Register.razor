@@ -1,0 +1,235 @@
+@page "/register"
+@inject IAuthService AuthService
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>নতুন অ্যাকাউন্ট নিবন্ধন | কৃষিবন্ধু ডিসিশন ইঞ্জিন</PageTitle>
+
+<div class="row justify-content-center py-4">
+    <div class="col-md-8 col-lg-7">
+        <div class="kb-card">
+            <div class="text-center mb-4">
+                <div class="kb-brand-icon mx-auto mb-2" style="width: 52px; height: 52px; font-size: 1.8rem;">
+                    <i class="bi bi-person-plus-fill"></i>
+                </div>
+                <h3 class="fw-bold mb-1">কৃষিবন্ধু প্ল্যাটফর্মে নিবন্ধন করুন</h3>
+                <p class="text-muted small">কৃষক, স্থানীয় ক্রেতা বা কর্মকর্তা হিসেবে সঠিক ভূমিকা নির্বাচন করে যোগ দিন</p>
+            </div>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger d-flex align-items-center gap-2 py-2" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+                    <div>@errorMessage</div>
+                </div>
+            }
+
+            <EditForm Model="registerModel" OnValidSubmit="HandleRegister">
+                <DataAnnotationsValidator />
+
+                <div class="row g-3">
+                    <div class="col-md-12">
+                        <label class="form-label">আপনার ভূমিকা নির্বাচন করুন <span class="text-danger">*</span></label>
+                        <InputSelect @bind-Value="registerModel.Role" class="form-select form-select-lg fw-bold text-success">
+                            <option value="@UserRole.Farmer">🌱 কৃষক (Farmer) - ফসল বিক্রয় ও লাভ যাচাই</option>
+                            <option value="@UserRole.Buyer">🏢 ক্রেতা / আড়তদার (Buyer) - ফসল ক্রয় ও চাহিদা পোস্ট</option>
+                            <option value="@UserRole.WeighingOperator">⚖️ ওজন পরিমাপক (Weighing Operator) - ডিজিটাল স্কেল ওজন রেকর্ড</option>
+                            <option value="@UserRole.SupportAgent">🛡️ সহায়তা কর্মকর্তা (Support Agent) - বিরোধ নিষ্পত্তি</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">পূর্ণ নাম <span class="text-danger">*</span></label>
+                        <InputText @bind-Value="registerModel.FullName" class="form-control" placeholder="যেমন: মো. আবুল হোসেন" />
+                        <ValidationMessage For="@(() => registerModel.FullName)" class="text-danger small mt-1" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">মোবাইল নম্বর <span class="text-danger">*</span></label>
+                        <InputText @bind-Value="registerModel.PhoneNumber" class="form-control" placeholder="১১ ডিজিটের নম্বর (যেমন: 01711223344)" />
+                        <ValidationMessage For="@(() => registerModel.PhoneNumber)" class="text-danger small mt-1" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">জেলা <span class="text-danger">*</span> <small class="text-muted">(৬৪টি জেলা)</small></label>
+                        <select class="form-select" value="@registerModel.District" @onchange="OnDistrictChanged">
+                            <option value="">-- জেলা নির্বাচন করুন --</option>
+                            @foreach (var divisionGroup in BangladeshLocationData.Districts.GroupBy(d => d.DivisionBn))
+                            {
+                                <optgroup label="@($"{divisionGroup.Key} বিভাগ ({divisionGroup.First().DivisionEn} Division)")">
+                                    @foreach (var dist in divisionGroup.OrderBy(d => d.NameBn))
+                                    {
+                                        <option value="@dist.DisplayName">@dist.DisplayName</option>
+                                    }
+                                </optgroup>
+                            }
+                        </select>
+                        <ValidationMessage For="@(() => registerModel.District)" class="text-danger small mt-1" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">উপজেলা <span class="text-danger">*</span></label>
+                        @if (upazilas != null && upazilas.Count > 0)
+                        {
+                            <select class="form-select" value="@registerModel.Upazila" @onchange="OnUpazilaChanged">
+                                <option value="">-- উপজেলা নির্বাচন করুন --</option>
+                                @foreach (var upz in upazilas)
+                                {
+                                    <option value="@upz">@upz</option>
+                                }
+                                <option value="অন্যান্য (Other)">অন্যান্য (Other) / নিজে লিখুন</option>
+                            </select>
+                            @if (isCustomUpazila)
+                            {
+                                <div class="mt-2">
+                                    <InputText @bind-Value="customUpazilaText" class="form-control" placeholder="আপনার উপজেলার নাম লিখুন" @bind-Value:after="OnCustomUpazilaChanged" />
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <InputText @bind-Value="registerModel.Upazila" class="form-control" placeholder="যেমন: শিবগঞ্জ / সদর" />
+                        }
+                        <ValidationMessage For="@(() => registerModel.Upazila)" class="text-danger small mt-1" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">ইউনিয়ন / গ্রাম (ঐচ্ছিক)</label>
+                        <InputText @bind-Value="registerModel.Union" class="form-control" placeholder="যেমন: মহাস্থান" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">ইমেইল ঠিকানা (ঐচ্ছিক)</label>
+                        <InputText @bind-Value="registerModel.Email" class="form-control" placeholder="example@mail.com" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">পাসওয়ার্ড <span class="text-danger">*</span></label>
+                        <InputText type="password" @bind-Value="registerModel.Password" class="form-control" placeholder="কমপক্ষে ৬ অক্ষর" />
+                        <ValidationMessage For="@(() => registerModel.Password)" class="text-danger small mt-1" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">পাসওয়ার্ড নিশ্চিত করুন <span class="text-danger">*</span></label>
+                        <InputText type="password" @bind-Value="registerModel.ConfirmPassword" class="form-control" placeholder="পুনরায় পাসওয়ার্ড দিন" />
+                        <ValidationMessage For="@(() => registerModel.ConfirmPassword)" class="text-danger small mt-1" />
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-kb-primary w-100 justify-content-center py-2 fs-5" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            <span>অ্যাকাউন্ট তৈরি হচ্ছে...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-circle me-1"></i>
+                            <span>নিবন্ধন সম্পন্ন করুন</span>
+                        }
+                    </button>
+                </div>
+            </EditForm>
+
+            <div class="text-center small border-top pt-3 mt-4">
+                ইতিমধ্যে অ্যাকাউন্ট আছে? <a href="login" class="fw-bold text-success text-decoration-none">এখানে লগইন করুন</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private RegisterDto registerModel = new()
+    {
+        District = "বগুড়া (Bogura)",
+        Upazila = "শিবগঞ্জ (Shibganj)"
+    };
+    private string? errorMessage;
+    private bool isLoading;
+    private IReadOnlyList<string> upazilas = Array.Empty<string>();
+    private bool isCustomUpazila;
+    private string customUpazilaText = "";
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(registerModel.District))
+        {
+            upazilas = BangladeshLocationData.GetUpazilasForDistrict(registerModel.District);
+        }
+    }
+
+    private void OnDistrictChanged(ChangeEventArgs e)
+    {
+        var selected = e.Value?.ToString() ?? "";
+        registerModel.District = selected;
+        upazilas = BangladeshLocationData.GetUpazilasForDistrict(selected);
+        isCustomUpazila = false;
+        customUpazilaText = "";
+
+        if (upazilas.Count > 0)
+        {
+            registerModel.Upazila = upazilas[0];
+        }
+        else
+        {
+            registerModel.Upazila = "";
+        }
+    }
+
+    private void OnUpazilaChanged(ChangeEventArgs e)
+    {
+        var selected = e.Value?.ToString() ?? "";
+        if (selected == "অন্যান্য (Other)")
+        {
+            isCustomUpazila = true;
+            registerModel.Upazila = !string.IsNullOrWhiteSpace(customUpazilaText) ? customUpazilaText : "অন্যান্য";
+        }
+        else
+        {
+            isCustomUpazila = false;
+            registerModel.Upazila = selected;
+        }
+    }
+
+    private void OnCustomUpazilaChanged()
+    {
+        if (isCustomUpazila && !string.IsNullOrWhiteSpace(customUpazilaText))
+        {
+            registerModel.Upazila = customUpazilaText;
+        }
+    }
+
+    private async Task HandleRegister()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var result = await AuthService.RegisterAsync(registerModel);
+            if (result.Succeeded && result.Data != null)
+            {
+                var tokenResult = await AuthService.GenerateSignInTokenForUserAsync(result.Data.UserId);
+                if (tokenResult.Succeeded && !string.IsNullOrEmpty(tokenResult.Data))
+                {
+                    Nav.NavigateTo($"/api/auth/sign-in?token={tokenResult.Data}", forceLoad: true);
+                    return;
+                }
+                Nav.NavigateTo("login", forceLoad: true);
+            }
+            else
+            {
+                errorMessage = result.Errors.FirstOrDefault() ?? "নিবন্ধন সম্পন্ন করা সম্ভব হয়নি।";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"ত্রুটি: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

@@ -1,0 +1,642 @@
+@page "/market-prices"
+@rendermode InteractiveServer
+@inject IMarketPriceService PriceService
+@inject ICropService CropService
+@inject NavigationManager Nav
+@inject ILocalizationService Loc
+
+<PageTitle>দৈনিক বাজারদর মনিটরিং ও মূল্য গোয়েন্দা তথ্য — কৃষিবন্ধু</PageTitle>
+
+<div class="container-fluid py-2">
+    <!-- Header Hero Banner -->
+    <div class="card border-0 text-white shadow-sm mb-4" style="background: linear-gradient(135deg, #073812 0%, #0D5C2E 60%, #15803D 100%); border-radius: 18px;">
+        <div class="card-body p-4">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-2" style="background: rgba(255,255,255,0.18); font-size: 0.85rem;">
+                        <i class="bi bi-shield-check text-warning"></i>
+                        <span>যাচাইকৃত রিয়েল-টাইম তথ্য | উন্মুক্ত নাগরিক পোর্টাল</span>
+                    </div>
+                    <h1 class="h2 fw-bold text-white mb-2">📊 দৈনিক পাইকারি ও খুচরা বাজারদর গোয়েন্দা তথ্য</h1>
+                    <p class="mb-0 text-light opacity-90" style="font-size: 1.05rem;">
+                        কৃষি বিপণন অধিদপ্তর (DAM), ভোক্তা অধিকার সংরক্ষণ অধিদপ্তর (DNCRP) এবং মাঠপর্যায়ের মোকাম থেকে সংগৃহীত প্রকৃত বাজার পর্যবেক্ষণ।
+                    </p>
+                </div>
+                <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+                    <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+                        <a href="complaints/submit" class="btn btn-warning text-dark fw-bold px-3 py-2 shadow-sm rounded-pill">
+                            <i class="bi bi-megaphone-fill me-1"></i> অতিরিক্ত দামের অভিযোগ
+                        </a>
+                        <AuthorizeView>
+                            <Authorized>
+                                <a href="market-prices/entry" class="btn btn-outline-light fw-bold px-3 py-2 rounded-pill">
+                                    <i class="bi bi-plus-circle me-1"></i> মূল্য এন্ট্রি করুন
+                                </a>
+                            </Authorized>
+                        </AuthorizeView>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+        <div class="card-body p-3 p-md-4">
+            <div class="row g-3 align-items-end">
+                <!-- Crop Selector -->
+                <div class="col-md-3">
+                    <label class="form-label fw-bold text-secondary small">
+                        <i class="bi bi-basket me-1 text-success"></i> পণ্য / ফসল নির্বাচন করুন
+                    </label>
+                    <select class="form-select border-success" @bind="selectedCropId" @bind:after="OnFilterChanged">
+                        @foreach (var crop in crops)
+                        {
+                            <option value="@crop.Id">@crop.IconEmoji @crop.NameBn (@crop.Category)</option>
+                        }
+                    </select>
+                </div>
+
+                <!-- District Filter -->
+                <div class="col-md-2">
+                    <label class="form-label fw-bold text-secondary small">
+                        <i class="bi bi-geo-alt me-1 text-danger"></i> জেলা
+                    </label>
+                    <select class="form-select" @bind="selectedDistrict" @bind:after="OnFilterChanged">
+                        <option value="">সকল জেলা (সারাদেশ)</option>
+                        <option value="ঢাকা (Dhaka)">ঢাকা</option>
+                        <option value="বগুড়া (Bogura)">বগুড়া</option>
+                        <option value="চট্টগ্রাম (Chattogram)">চট্টগ্রাম</option>
+                        <option value="রাজশাহী (Rajshahi)">রাজশাহী</option>
+                        <option value="যশোর (Jashore)">যশোর</option>
+                    </select>
+                </div>
+
+                <!-- Market Type Filter -->
+                <div class="col-md-2">
+                    <label class="form-label fw-bold text-secondary small">
+                        <i class="bi bi-shop me-1 text-primary"></i> বাজারের ধরন
+                    </label>
+                    <select class="form-select" @bind="selectedMarketType" @bind:after="OnFilterChanged">
+                        <option value="">পাইকারি ও খুচরা উভয়</option>
+                        <option value="@MarketType.Wholesale">শুধুমাত্র পাইকারি বাজার</option>
+                        <option value="@MarketType.Retail">শুধুমাত্র খুচরা বাজার</option>
+                    </select>
+                </div>
+
+                <!-- Date Filter -->
+                <div class="col-md-3">
+                    <label class="form-label fw-bold text-secondary small">
+                        <i class="bi bi-calendar3 me-1 text-info"></i> পর্যবেক্ষণের তারিখ
+                    </label>
+                    <input type="date" class="form-control" @bind="selectedDate" @bind:after="OnFilterChanged" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                </div>
+
+                <!-- Reset Button -->
+                <div class="col-md-2">
+                    <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-1" @onclick="ResetFilters">
+                        <i class="bi bi-arrow-counterclockwise"></i> রিসেট ফিল্টার
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-success" role="status"></div>
+            <p class="text-muted mt-2">তথ্য লোড হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...</p>
+        </div>
+    }
+    else if (summary != null)
+    {
+        <!-- Metrics Display: Wholesale & Retail Cards -->
+        <div class="row g-4 mb-4">
+            <!-- Wholesale Prices Card -->
+            <div class="col-lg-6">
+                <div class="card h-100 border-0 shadow-sm" style="border-radius: 16px; border-left: 5px solid #0D5C2E !important;">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h2 class="h5 fw-bold mb-0 text-success d-flex align-items-center gap-2">
+                                <i class="bi bi-box-seam"></i> পাইকারি বাজারদর (Wholesale)
+                            </h2>
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill">
+                                @summary.Wholesale.ObservationCount টি পর্যবেক্ষণ রেকর্ড
+                            </span>
+                        </div>
+
+                        @if (summary.Wholesale.ObservationCount > 0)
+                        {
+                            <div class="row g-3 text-center my-2">
+                                <div class="col-4">
+                                    <div class="p-3 bg-light rounded-3">
+                                        <div class="text-muted small fw-semibold">সর্বনিম্ন পাইকারি</div>
+                                        <div class="h4 fw-bold text-success mb-0 mt-1">৳@summary.Wholesale.LowestPrice.ToString("F2")</div>
+                                        <div class="text-muted" style="font-size: 0.75rem;">প্রতি @summary.StandardUnit</div>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="p-3 rounded-3" style="background-color: #EBF7EE; border: 1px solid #C8E6C9;">
+                                        <div class="text-success fw-bold small">গড় পাইকারি দর</div>
+                                        <div class="h3 fw-bold text-dark mb-0 mt-1">৳@summary.Wholesale.AveragePrice.ToString("F2")</div>
+                                        <div class="text-muted" style="font-size: 0.75rem;">প্রতি @summary.StandardUnit</div>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="p-3 bg-light rounded-3">
+                                        <div class="text-muted small fw-semibold">সর্বোচ্চ পাইকারি</div>
+                                        <div class="h4 fw-bold text-danger mb-0 mt-1">৳@summary.Wholesale.HighestPrice.ToString("F2")</div>
+                                        <div class="text-muted" style="font-size: 0.75rem;">প্রতি @summary.StandardUnit</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Previous Day Comparison -->
+                            <div class="mt-3 pt-3 border-top d-flex justify-content-between align-items-center">
+                                <span class="small text-secondary">
+                                    <i class="bi bi-clock-history me-1"></i> পূর্ববর্তী দিনের তুলনায় পরিবর্তন:
+                                </span>
+                                @if (summary.WholesaleComparison.HasHistoricalData)
+                                {
+                                    @if (summary.WholesaleComparison.PriceDifference > 0)
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger px-2 py-1 rounded-pill fw-bold">
+                                            <i class="bi bi-caret-up-fill"></i> +৳@summary.WholesaleComparison.PriceDifference.ToString("F2") (+@summary.WholesaleComparison.PercentageChange.ToString("F1")%) বৃদ্ধি
+                                        </span>
+                                    }
+                                    else if (summary.WholesaleComparison.PriceDifference < 0)
+                                    {
+                                        <span class="badge bg-success-subtle text-success px-2 py-1 rounded-pill fw-bold">
+                                            <i class="bi bi-caret-down-fill"></i> -৳@Math.Abs(summary.WholesaleComparison.PriceDifference).ToString("F2") (@summary.WholesaleComparison.PercentageChange.ToString("F1")%) হ্রাস
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary-subtle text-secondary px-2 py-1 rounded-pill">
+                                            <i class="bi bi-dash"></i> অপরিবর্তিত (পূর্বদিন: ৳@summary.WholesaleComparison.PreviousDayAverage.ToString("F2"))
+                                        </span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="badge bg-light text-muted border">পূর্বদিনের তথ্য সংরক্ষিত নেই</span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-light border text-center my-3 py-4 text-muted">
+                                <i class="bi bi-info-circle fs-4 d-block mb-1"></i>
+                                এই তারিখে নির্বাচিত এলাকায় পাইকারি বাজারের কোনো পর্যবেক্ষণ তথ্য নেই।
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Retail Prices Card -->
+            <div class="col-lg-6">
+                <div class="card h-100 border-0 shadow-sm" style="border-radius: 16px; border-left: 5px solid #F59E0B !important;">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h2 class="h5 fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                                <i class="bi bi-cart3 text-warning"></i> খুচরা বাজারদর (Retail)
+                            </h2>
+                            <span class="badge bg-warning-subtle text-dark border border-warning-subtle px-3 py-2 rounded-pill">
+                                @summary.Retail.ObservationCount টি পর্যবেক্ষণ রেকর্ড
+                            </span>
+                        </div>
+
+                        @if (summary.Retail.ObservationCount > 0)
+                        {
+                            <div class="row g-3 text-center my-2">
+                                <div class="col-4">
+                                    <div class="p-3 bg-light rounded-3">
+                                        <div class="text-muted small fw-semibold">সর্বনিম্ন খুচরা</div>
+                                        <div class="h4 fw-bold text-success mb-0 mt-1">৳@summary.Retail.LowestPrice.ToString("F2")</div>
+                                        <div class="text-muted" style="font-size: 0.75rem;">প্রতি @summary.StandardUnit</div>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="p-3 rounded-3" style="background-color: #FEF3C7; border: 1px solid #FDE68A;">
+                                        <div class="text-warning-emphasis fw-bold small">গড় খুচরা দর</div>
+                                        <div class="h3 fw-bold text-dark mb-0 mt-1">৳@summary.Retail.AveragePrice.ToString("F2")</div>
+                                        <div class="text-muted" style="font-size: 0.75rem;">প্রতি @summary.StandardUnit</div>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="p-3 bg-light rounded-3">
+                                        <div class="text-muted small fw-semibold">সর্বোচ্চ খুচরা</div>
+                                        <div class="h4 fw-bold text-danger mb-0 mt-1">৳@summary.Retail.HighestPrice.ToString("F2")</div>
+                                        <div class="text-muted" style="font-size: 0.75rem;">প্রতি @summary.StandardUnit</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Previous Day Comparison -->
+                            <div class="mt-3 pt-3 border-top d-flex justify-content-between align-items-center">
+                                <span class="small text-secondary">
+                                    <i class="bi bi-clock-history me-1"></i> পূর্ববর্তী দিনের তুলনায় পরিবর্তন:
+                                </span>
+                                @if (summary.RetailComparison.HasHistoricalData)
+                                {
+                                    @if (summary.RetailComparison.PriceDifference > 0)
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger px-2 py-1 rounded-pill fw-bold">
+                                            <i class="bi bi-caret-up-fill"></i> +৳@summary.RetailComparison.PriceDifference.ToString("F2") (+@summary.RetailComparison.PercentageChange.ToString("F1")%) বৃদ্ধি
+                                        </span>
+                                    }
+                                    else if (summary.RetailComparison.PriceDifference < 0)
+                                    {
+                                        <span class="badge bg-success-subtle text-success px-2 py-1 rounded-pill fw-bold">
+                                            <i class="bi bi-caret-down-fill"></i> -৳@Math.Abs(summary.RetailComparison.PriceDifference).ToString("F2") (@summary.RetailComparison.PercentageChange.ToString("F1")%) হ্রাস
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary-subtle text-secondary px-2 py-1 rounded-pill">
+                                            <i class="bi bi-dash"></i> অপরিবর্তিত (পূর্বদিন: ৳@summary.RetailComparison.PreviousDayAverage.ToString("F2"))
+                                        </span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="badge bg-light text-muted border">পূর্বদিনের তথ্য সংরক্ষিত নেই</span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-light border text-center my-3 py-4 text-muted">
+                                <i class="bi bi-info-circle fs-4 d-block mb-1"></i>
+                                এই তারিখে নির্বাচিত এলাকায় খুচরা বাজারের কোনো পর্যবেক্ষণ তথ্য নেই।
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Official Legal Directives Banner (Crucial Domain Boundary) -->
+        <div class="card border-0 shadow-sm mb-4" style="background: #F0FDF4; border: 1px solid #BBF7D0 !important; border-radius: 16px;">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-start gap-3">
+                    <div class="p-3 bg-success text-white rounded-circle">
+                        <i class="bi bi-file-earmark-lock2 fs-4"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                            <h2 class="h5 fw-bold text-success mb-0">
+                                ⚖️ সরকার নির্ধারিত আইনি মূল্য নির্দেশিকা (Official Legal Directives)
+                            </h2>
+                            <span class="badge bg-success text-white px-3 py-1 rounded-pill">আইনগত সংবিধিবদ্ধ সীমা</span>
+                        </div>
+                        <p class="text-secondary small mt-1 mb-3">
+                            <strong>সতর্কবার্তা:</strong> বাজারের সর্বোচ্চ পর্যবেক্ষণ মূল্য কোনো অবস্থাতেই আইনগত সর্বোচ্চ সীমা নয়। কেবলমাত্র সরকারের সংশ্লিষ্ট সংস্থা (ভোক্তা অধিকার অধিদপ্তর, কৃষি বিপণন অধিদপ্তর ইত্যাদি) কর্তৃক গেজেট বা নিয়ন্ত্রণাদেশ জারি হলে তা আইনি মানদণ্ড হিসেবে গ্রাহ্য হয়।
+                        </p>
+
+                        @if (summary.ApplicableOfficialDirectives.Any())
+                        {
+                            <div class="row g-3">
+                                @foreach (var dir in summary.ApplicableOfficialDirectives)
+                                {
+                                    <div class="col-md-6">
+                                        <div class="p-3 bg-white rounded-3 shadow-sm border">
+                                            <div class="d-flex justify-content-between">
+                                                <span class="fw-bold text-primary">@dir.DirectiveNumber</span>
+                                                <span class="badge bg-primary-subtle text-primary">@dir.IssuingAuthority</span>
+                                            </div>
+                                            <div class="fw-semibold text-dark mt-1">@dir.TitleBn</div>
+                                            <div class="my-2 p-2 bg-light rounded text-center">
+                                                <span class="text-muted small">আইনগত নির্ধারিত সর্বোচ্চ মূল্য: </span>
+                                                <strong class="text-danger fs-5">৳@dir.LegalMaxPrice.ToString("F2")</strong>
+                                                <span class="text-muted small">/ @dir.StandardUnit</span>
+                                            </div>
+                                            <div class="text-muted small">
+                                                <i class="bi bi-info-circle me-1"></i> @dir.ApplicableConditions
+                                            </div>
+                                            <div class="text-muted" style="font-size: 0.75rem;">
+                                                মেয়াদ: @dir.EffectiveFromUtc.ToString("dd MMM yyyy") হতে @(dir.EffectiveToUtc?.ToString("dd MMM yyyy") ?? "পরবর্তী নির্দেশ না দেওয়া পর্যন্ত")
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="p-3 bg-white rounded-3 text-muted small border">
+                                <i class="bi bi-info-circle me-1"></i> এই পণ্যের জন্য বর্তমানে কোনো একক সরকারি আইনি সর্বোচ্চ মূল্য নির্ধারণাদেশ বলবৎ নেই। সাধারণ বাজার চাহিদা ও সরবরাহের ভিত্তিতে দর নির্ধারিত হচ্ছে।
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7-Day Real Price Trend Chart & Table -->
+        <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+            <div class="card-header bg-white border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="h5 fw-bold mb-1 text-dark">
+                        <i class="bi bi-graph-up text-primary me-2"></i> ৭ দিনের বাজারদর প্রবণতা (Price Trend Analysis)
+                    </h2>
+                    <p class="text-muted small mb-0">বাস্তব সংরক্ষিত পর্যবেক্ষণের ভিত্তিতে ঐতিহাসিক মূল্য চিত্র (কোনো কাল্পনিক তথ্য অন্তর্ভুক্ত নয়)</p>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="small d-flex align-items-center gap-1"><span class="d-inline-block rounded-circle" style="width:10px; height:10px; background:#0D5C2E;"></span> পাইকারি গড়</span>
+                    <span class="small d-flex align-items-center gap-1"><span class="d-inline-block rounded-circle" style="width:10px; height:10px; background:#F59E0B;"></span> খুচরা গড়</span>
+                </div>
+            </div>
+            <div class="card-body p-4">
+                @if (trendPoints.Any())
+                {
+                    <!-- Visual SVG Trend Line Chart -->
+                    <div class="p-3 bg-light rounded-3 mb-4 overflow-auto">
+                        <div style="min-width: 500px;">
+                            <svg viewBox="0 0 600 180" style="width: 100%; height: 180px; overflow: visible;">
+                                <!-- Grid Lines -->
+                                <line x1="50" y1="30" x2="570" y2="30" stroke="#E2E8F0" stroke-dasharray="3" />
+                                <line x1="50" y1="80" x2="570" y2="80" stroke="#E2E8F0" stroke-dasharray="3" />
+                                <line x1="50" y1="130" x2="570" y2="130" stroke="#E2E8F0" stroke-dasharray="3" />
+
+                                <!-- Plot points & lines -->
+                                @{
+                                    var minP = trendPoints.Where(p => p.LowestObservedPrice.HasValue).Select(p => p.LowestObservedPrice!.Value).DefaultIfEmpty(20).Min();
+                                    var maxP = trendPoints.Where(p => p.HighestObservedPrice.HasValue).Select(p => p.HighestObservedPrice!.Value).DefaultIfEmpty(100).Max();
+                                    if (maxP <= minP) { maxP = minP + 10; }
+                                    var range = maxP - minP;
+
+                                    var pointsWholesale = new List<string>();
+                                    var pointsRetail = new List<string>();
+                                    var step = 500.0 / Math.Max(1, trendPoints.Count - 1);
+
+                                    for (int i = 0; i < trendPoints.Count; i++)
+                                    {
+                                        var x = 50 + (i * step);
+                                        var p = trendPoints[i];
+
+                                        if (p.AverageWholesalePrice.HasValue)
+                                        {
+                                            var yW = 140 - (double)((p.AverageWholesalePrice.Value - minP) / range) * 100;
+                                            pointsWholesale.Add($"{x:F1},{yW:F1}");
+                                        }
+
+                                        if (p.AverageRetailPrice.HasValue)
+                                        {
+                                            var yR = 140 - (double)((p.AverageRetailPrice.Value - minP) / range) * 100;
+                                            pointsRetail.Add($"{x:F1},{yR:F1}");
+                                        }
+                                    }
+                                }
+
+                                @if (pointsWholesale.Count > 1)
+                                {
+                                    <polyline fill="none" stroke="#0D5C2E" stroke-width="3" points="@string.Join(" ", pointsWholesale)" />
+                                }
+                                @if (pointsRetail.Count > 1)
+                                {
+                                    <polyline fill="none" stroke="#F59E0B" stroke-width="3" points="@string.Join(" ", pointsRetail)" />
+                                }
+
+                                @for (int i = 0; i < trendPoints.Count; i++)
+                                {
+                                    var x = 50 + (i * step);
+                                    var p = trendPoints[i];
+
+                                    if (p.AverageWholesalePrice.HasValue)
+                                    {
+                                        var yW = 140 - (double)((p.AverageWholesalePrice.Value - minP) / range) * 100;
+                                        <circle cx="@x" cy="@yW" r="4" fill="#0D5C2E" />
+                                        @((MarkupString)$"<text x=\"{x:F1}\" y=\"{(yW - 8):F1}\" font-size=\"10\" font-weight=\"bold\" fill=\"#0D5C2E\" text-anchor=\"middle\">৳{p.AverageWholesalePrice.Value:F0}</text>")
+                                    }
+
+                                    if (p.AverageRetailPrice.HasValue)
+                                    {
+                                        var yR = 140 - (double)((p.AverageRetailPrice.Value - minP) / range) * 100;
+                                        <circle cx="@x" cy="@yR" r="4" fill="#F59E0B" />
+                                        @((MarkupString)$"<text x=\"{x:F1}\" y=\"{(yR - 8):F1}\" font-size=\"10\" font-weight=\"bold\" fill=\"#B45309\" text-anchor=\"middle\">৳{p.AverageRetailPrice.Value:F0}</text>")
+                                    }
+
+                                    <!-- Date label -->
+                                    @((MarkupString)$"<text x=\"{x:F1}\" y=\"165\" font-size=\"10\" fill=\"#64748B\" text-anchor=\"middle\">{p.Date:dd MMM}</text>")
+                                }
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Trend Breakdown Table -->
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>তারিখ</th>
+                                    <th class="text-center">গড় পাইকারি দর</th>
+                                    <th class="text-center">গড় খুচরা দর</th>
+                                    <th class="text-center">সর্বনিম্ন মূল্য</th>
+                                    <th class="text-center">সর্বোচ্চ মূল্য</th>
+                                    <th class="text-center">পর্যবেক্ষণ সংখ্যা</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var tp in trendPoints)
+                                {
+                                    <tr>
+                                        <td class="fw-semibold">@tp.FormattedDate</td>
+                                        <td class="text-center">
+                                            @if (tp.AverageWholesalePrice.HasValue)
+                                            {
+                                                <span class="text-success fw-bold">৳@tp.AverageWholesalePrice.Value.ToString("F2")</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                        <td class="text-center">
+                                            @if (tp.AverageRetailPrice.HasValue)
+                                            {
+                                                <span class="text-warning-emphasis fw-bold">৳@tp.AverageRetailPrice.Value.ToString("F2")</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                        <td class="text-center">৳@tp.LowestObservedPrice?.ToString("F2")</td>
+                                        <td class="text-center">৳@tp.HighestObservedPrice?.ToString("F2")</td>
+                                        <td class="text-center">
+                                            <span class="badge bg-light text-dark border">@tp.TotalObservations টি</span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-light border text-center text-muted py-4">
+                        <i class="bi bi-clock-history fs-3 d-block mb-2"></i>
+                        এই পণ্যটির জন্য সাম্প্রতিক ৭ দিনের কোনো বাজার তথ্য পাওয়া যায়নি।
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Detailed Observations Table -->
+        <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+            <div class="card-header bg-white border-0 pt-4 px-4 pb-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h2 class="h5 fw-bold mb-1 text-dark">
+                        <i class="bi bi-list-check text-success me-2"></i> বাজারভিত্তিক মূল্য পর্যবেক্ষণ তালিকা
+                    </h2>
+                    <p class="text-muted small mb-0">আসল একক (মণ, বস্তা ইত্যাদি) ও স্ট্যান্ডার্ড কেজি এককে কনভার্টকৃত তুলনামূলক তথ্য</p>
+                </div>
+            </div>
+            <div class="card-body p-4">
+                @if (observationsList.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>বাজার ও অবস্থান</th>
+                                    <th>বাজারের ধরন</th>
+                                    <th>পর্যবেক্ষিত আসল দর</th>
+                                    <th>মানসম্মত প্রতি কেজি দর</th>
+                                    <th>তথ্যের উৎস</th>
+                                    <th>যাচাইকরণ</th>
+                                    <th>মন্তব্য</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var obs in observationsList)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="fw-bold text-dark">@obs.MarketNameBn</div>
+                                            <div class="text-muted small">@obs.District, @obs.Upazila</div>
+                                        </td>
+                                        <td>
+                                            @if (obs.MarketType == MarketType.Wholesale)
+                                            {
+                                                <span class="badge bg-success-subtle text-success">পাইকারি বাজার</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-warning-subtle text-dark">খুচরা বাজার</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="fw-semibold">৳@obs.ObservedPrice.ToString("F2")</div>
+                                            <div class="text-muted" style="font-size: 0.75rem;">প্রতি @obs.ObservedQuantity @obs.ObservedUnit</div>
+                                        </td>
+                                        <td>
+                                            <div class="h6 fw-bold text-success mb-0">৳@obs.NormalizedPricePerUnit.ToString("F2")</div>
+                                            <div class="text-muted" style="font-size: 0.75rem;">প্রতি @obs.NormalizedUnit</div>
+                                        </td>
+                                        <td>
+                                            <span class="small text-secondary">@obs.SourceNameBn</span>
+                                        </td>
+                                        <td>
+                                            @if (obs.VerificationStatus == PriceVerificationStatus.Verified)
+                                            {
+                                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>যাচাইকৃত</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">প্রাথমিক</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="small text-muted">@(obs.Notes ?? "—")</span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-light border text-center text-muted py-4">
+                        নির্বাচিত ফিল্টারের সাথে মিলে এমন কোনো পর্যবেক্ষণ পাওয়া যায়নি।
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<CropDto> crops = new List<CropDto>();
+    private Guid selectedCropId;
+    private string selectedDistrict = string.Empty;
+    private MarketType? selectedMarketType;
+    private DateTime selectedDate = DateTime.Today;
+
+    private MarketPriceSummaryDto? summary;
+    private IReadOnlyList<PriceTrendPointDto> trendPoints = new List<PriceTrendPointDto>();
+    private IReadOnlyList<MarketPriceObservationDto> observationsList = new List<MarketPriceObservationDto>();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        crops = await CropService.GetAllCropsAsync();
+        if (crops.Any())
+        {
+            // Prefer potato or onion if available for richest demo
+            var preferred = crops.FirstOrDefault(c => c.NameBn.Contains("আলু")) ?? crops.First();
+            selectedCropId = preferred.Id;
+        }
+
+        await LoadDataAsync();
+    }
+
+    private async Task OnFilterChanged()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task ResetFilters()
+    {
+        selectedDistrict = string.Empty;
+        selectedMarketType = null;
+        selectedDate = DateTime.Today;
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        if (selectedCropId == Guid.Empty) return;
+
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            summary = await PriceService.GetMarketPriceSummaryAsync(selectedCropId, selectedDate, string.IsNullOrWhiteSpace(selectedDistrict) ? null : selectedDistrict);
+
+            trendPoints = await PriceService.GetPriceTrendsAsync(selectedCropId, 7, string.IsNullOrWhiteSpace(selectedDistrict) ? null : selectedDistrict, selectedMarketType);
+
+            var filter = new MarketPriceFilterDto
+            {
+                CropId = selectedCropId,
+                District = string.IsNullOrWhiteSpace(selectedDistrict) ? null : selectedDistrict,
+                MarketType = selectedMarketType,
+                Date = selectedDate,
+                PageNumber = 1,
+                PageSize = 50
+            };
+
+            var paged = await PriceService.GetObservationsAsync(filter);
+            observationsList = paged.Items;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

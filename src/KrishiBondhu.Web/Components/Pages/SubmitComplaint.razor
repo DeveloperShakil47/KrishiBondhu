@@ -1,0 +1,459 @@
+@page "/complaints/submit"
+@rendermode InteractiveServer
+@inject IConsumerComplaintService ComplaintService
+@inject ICropService CropService
+@inject IMarketPriceService PriceService
+@inject IFileStorageService FileStorage
+@inject ICurrentUserService CurrentUser
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>ভোক্তা অভিযোগ দাখিল — অতিরিক্ত মূল্যের নিরপেক্ষ অনুসন্ধান — কৃষিবন্ধু</PageTitle>
+
+<div class="container py-4" style="max-width: 900px;">
+    <!-- Hero / Title -->
+    <div class="card border-0 shadow-sm mb-4" style="background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%); border-radius: 18px;">
+        <div class="card-body p-4 text-white">
+            <div class="d-flex align-items-center gap-3">
+                <div class="p-3 bg-warning text-dark rounded-circle">
+                    <i class="bi bi-shield-exclamation fs-3"></i>
+                </div>
+                <div>
+                    <h1 class="h3 fw-bold mb-1 text-white">🛡️ ভোক্তা অভিযোগ দাখিল পোর্টাল</h1>
+                    <p class="text-light opacity-90 small mb-0">
+                        পাইকারি বা খুচরা পর্যায়ে অতিরিক্ত মূল্য দাবি বা নেওয়ার বিরুদ্ধে নাগরিক অভিযোগ এবং নিরপেক্ষ বাজারদর যাচাইকরণ।
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Legal Policy & Neutrality Notice -->
+    <div class="alert alert-info border-0 shadow-sm d-flex align-items-start gap-2 mb-4" style="border-radius: 14px; background-color: #EFF6FF; border-left: 4px solid #3B82F6 !important;">
+        <i class="bi bi-info-circle-fill text-primary fs-5 mt-1"></i>
+        <div class="small text-secondary">
+            <strong>ন্যায্যতা ও আইনি মানদণ্ড বিষয়ক নির্দেশনা:</strong>
+            বাজারের গড় বা সর্বোচ্চ পর্যবেক্ষণ মূল্যের চেয়ে কোনো পণ্যের দাম বেশি নিলেই তা স্বয়ংক্রিয়ভাবে কোনো আইনগত লঙ্ঘন নয়, যদি না উক্ত পণ্যের ক্ষেত্রে সরকার কর্তৃক আনুষ্ঠানিক কোনো নিয়ন্ত্রিত সর্বোচ্চ মূল্যাদেশ (Price Directive) বলবৎ থাকে। আপনার দাখিলকৃত অভিযোগটি কর্মকর্তা দ্বারা নিরপেক্ষভাবে বিশ্লেষণ করা হবে এবং কোনো পক্ষকে পূর্বনির্ধারিতভাবে দোষী সাব্যস্ত করা হবে না।
+        </div>
+    </div>
+
+    @if (submittedComplaint != null)
+    {
+        <!-- Submission Success View -->
+        <div class="card border-0 shadow-sm" style="border-radius: 18px;">
+            <div class="card-body p-4 p-md-5 text-center">
+                <div class="p-3 bg-success-subtle text-success d-inline-block rounded-circle mb-3">
+                    <i class="bi bi-check2-circle fs-1"></i>
+                </div>
+                <h3 class="fw-bold text-dark mb-2">আপনার অভিযোগটি সফলভাবে দাখিল হয়েছে!</h3>
+                <p class="text-muted">
+                    অভিযোগের নিরপেক্ষ পর্যালোচনা ও অনুসন্ধানের জন্য আপনার একটি অনন্য ট্র্যাকিং নম্বর তৈরি করা হয়েছে।
+                </p>
+
+                <div class="p-4 my-4 rounded-3 d-inline-block text-center" style="background-color: #F8FAFC; border: 2px dashed #CBD5E1; min-width: 320px;">
+                    <span class="text-secondary small fw-semibold d-block">আপনার ট্র্যাকিং নম্বর (Tracking Number)</span>
+                    <span class="display-6 fw-bold text-primary font-monospace">@submittedComplaint.TrackingNumber</span>
+                    <div class="mt-2 text-muted" style="font-size: 0.8rem;">
+                        <i class="bi bi-shield-lock me-1"></i> গোপনীয়তার সুবিধার্থে ট্র্যাকিং দেখতে আপনার প্রদত্ত মোবাইল নম্বর প্রয়োজন হবে।
+                    </div>
+                </div>
+
+                <!-- Neutral Analysis Summary Preview -->
+                <div class="card bg-light border-0 text-start p-3 mb-4 mx-auto" style="max-width: 650px; border-radius: 14px;">
+                    <h6 class="fw-bold text-dark mb-2">
+                        <i class="bi bi-cpu text-primary me-1"></i> স্বয়ংক্রিয় প্রাথমিক তুলনামূলক বিশ্লেষণ:
+                    </h6>
+                    <div class="small text-secondary mb-2">
+                        দাবিকৃত বা পরিশোধিত দর: <strong>৳@submittedComplaint.NormalizedPricePerUnit.ToString("F2")</strong> প্রতি @submittedComplaint.StandardUnit
+                    </div>
+                    @if (submittedComplaint.MatchedMarketAveragePrice.HasValue)
+                    {
+                        <div class="small text-secondary mb-2">
+                            একই দিনে ওই এলাকার পর্যবেক্ষণকৃত গড় বাজারদর: <strong>৳@submittedComplaint.MatchedMarketAveragePrice.Value.ToString("F2")</strong>
+                            @if (submittedComplaint.PriceVariancePercentage.HasValue)
+                            {
+                                <span class="badge @(submittedComplaint.PriceVariancePercentage.Value > 0 ? "bg-danger" : "bg-success") ms-1">
+                                    @(submittedComplaint.PriceVariancePercentage.Value > 0 ? "+" : "")@submittedComplaint.PriceVariancePercentage.Value.ToString("F1")%
+                                </span>
+                            }
+                        </div>
+                    }
+                    <div class="small text-muted p-2 bg-white rounded border">
+                        @submittedComplaint.ComparisonAnalysisNotes
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap justify-content-center gap-3">
+                    <a href="complaints/track" class="btn btn-primary fw-bold px-4 py-2 rounded-pill shadow-sm">
+                        <i class="bi bi-search me-1"></i> অভিযোগের অগ্রগতি ট্র্যাক করুন
+                    </a>
+                    <button class="btn btn-outline-secondary px-4 py-2 rounded-pill" @onclick="ResetForm">
+                        আরেকটি অভিযোগ দাখিল করুন
+                    </button>
+                    <a href="market-prices" class="btn btn-outline-success px-4 py-2 rounded-pill">
+                        বাজারদর পেজে ফিরুন
+                    </a>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Complaint Submission Form -->
+        <div class="card border-0 shadow-sm" style="border-radius: 18px;">
+            <div class="card-body p-4 p-md-5">
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i> @errorMessage
+                        <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+                    </div>
+                }
+
+                <EditForm Model="model" OnValidSubmit="HandleSubmit">
+                    <DataAnnotationsValidator />
+
+                    <!-- Section 1: Complainant Details -->
+                    <div class="mb-4">
+                        <h5 class="fw-bold text-dark pb-2 border-bottom d-flex align-items-center gap-2">
+                            <i class="bi bi-person-badge text-success"></i> ১. অভিযোগকারীর তথ্য (সম্পূর্ণ গোপনীয় রাখা হবে)
+                        </h5>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">আপনার পুরো নাম <span class="text-danger">*</span></label>
+                                <InputText class="form-control" placeholder="যেমন: মো. কামরুল হাসান" @bind-Value="model.ComplainantName" />
+                                <ValidationMessage For="() => model.ComplainantName" class="text-danger small" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">মোবাইল নম্বর <span class="text-danger">*</span></label>
+                                <InputText class="form-control" placeholder="০১XXXXXXXXX" @bind-Value="model.ComplainantPhone" />
+                                <div class="form-text text-muted" style="font-size: 0.78rem;">অভিযোগের অগ্রগতি ট্র্যাকিংয়ের জন্য এই নম্বরটি যাচাইয়ের মাধ্যম হিসেবে ব্যবহৃত হবে।</div>
+                                <ValidationMessage For="() => model.ComplainantPhone" class="text-danger small" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small text-muted">ইমেইল ঠিকানা (ঐচ্ছিক)</label>
+                                <InputText class="form-control" placeholder="example@email.com" @bind-Value="model.ComplainantEmail" />
+                                <ValidationMessage For="() => model.ComplainantEmail" class="text-danger small" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Seller & Location Information -->
+                    <div class="mb-4">
+                        <h5 class="fw-bold text-dark pb-2 border-bottom d-flex align-items-center gap-2">
+                            <i class="bi bi-shop text-primary"></i> ২. অভিযুক্ত দোকান ও বিক্রেতার তথ্য
+                        </h5>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">দোকান বা ব্যবসা প্রতিষ্ঠানের নাম <span class="text-danger">*</span></label>
+                                <InputText class="form-control" placeholder="যেমন: সততা স্টোর / মেসার্স করিম ট্রেডার্স" @bind-Value="model.ShopOrBusinessName" />
+                                <ValidationMessage For="() => model.ShopOrBusinessName" class="text-danger small" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">বিক্রেতার ধরন <span class="text-danger">*</span></label>
+                                <InputSelect class="form-select" @bind-Value="model.SellerType">
+                                    <option value="@MarketType.Retail">খুচরা বিক্রেতা (Retail Shop / Vendor)</option>
+                                    <option value="@MarketType.Wholesale">পাইকারি আড়তদার / মোকাম (Wholesaler)</option>
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">জেলা <span class="text-danger">*</span></label>
+                                <InputSelect class="form-select" @bind-Value="model.District">
+                                    <option value="">-- জেলা নির্বাচন করুন --</option>
+                                    <option value="ঢাকা (Dhaka)">ঢাকা</option>
+                                    <option value="বগুড়া (Bogura)">বগুড়া</option>
+                                    <option value="চট্টগ্রাম (Chattogram)">চট্টগ্রাম</option>
+                                    <option value="রাজশাহী (Rajshahi)">রাজশাহী</option>
+                                    <option value="যশোর (Jashore)">যশোর</option>
+                                    <option value="অন্যান্য">অন্যান্য</option>
+                                </InputSelect>
+                                <ValidationMessage For="() => model.District" class="text-danger small" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">উপজেলা / থানা <span class="text-danger">*</span></label>
+                                <InputText class="form-control" placeholder="যেমন: তেজগাঁও / শিবগঞ্জ" @bind-Value="model.Upazila" />
+                                <ValidationMessage For="() => model.Upazila" class="text-danger small" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small text-muted">বাজারের নাম (যদি তালিকাভুক্ত হয়)</label>
+                                <select class="form-select" @bind="model.MarketId">
+                                    <option value="">-- সাধারণ বাজার / লোকাল দোকান --</option>
+                                    @foreach (var m in availableMarkets)
+                                    {
+                                        <option value="@m.Id">@m.NameBn</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-bold">দোকানের পূর্ণ ঠিকানা বা অবস্থান <span class="text-danger">*</span></label>
+                                <InputText class="form-control" placeholder="যেমন: কারওয়ান বাজার কাঁচাবাজার গলি, দোকান নং ৪৫" @bind-Value="model.ShopAddress" />
+                                <ValidationMessage For="() => model.ShopAddress" class="text-danger small" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Product, Transaction & Price Details -->
+                    <div class="mb-4">
+                        <h5 class="fw-bold text-dark pb-2 border-bottom d-flex align-items-center gap-2">
+                            <i class="bi bi-cash-stack text-warning"></i> ৩. ক্রয়ের বিবরণ ও অতিরিক্ত মূল্যের তথ্য
+                        </h5>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">পণ্য বা ফসল নির্বাচন করুন <span class="text-danger">*</span></label>
+                                <select class="form-select border-success" @bind="model.CropId" @bind:after="UpdateCalculatedPreview">
+                                    <option value="@Guid.Empty">-- পণ্য নির্বাচন করুন --</option>
+                                    @foreach (var c in availableCrops)
+                                    {
+                                        <option value="@c.Id">@c.IconEmoji @c.NameBn (@c.Category)</option>
+                                    }
+                                </select>
+                                <ValidationMessage For="() => model.CropId" class="text-danger small" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">ক্রয়ের তারিখ ও সময় <span class="text-danger">*</span></label>
+                                <input type="datetime-local" class="form-control" @bind="model.PurchaseDateTime" max="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" />
+                                <ValidationMessage For="() => model.PurchaseDateTime" class="text-danger small" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">ক্রয়কৃত পরিমাণ <span class="text-danger">*</span></label>
+                                <input type="number" step="0.01" class="form-control" @bind="model.QuantityPurchased" @bind:after="UpdateCalculatedPreview" />
+                                <ValidationMessage For="() => model.QuantityPurchased" class="text-danger small" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">পরিমাপের একক <span class="text-danger">*</span></label>
+                                <select class="form-select" @bind="model.ReportedUnit" @bind:after="UpdateCalculatedPreview">
+                                    <option value="কেজি">কেজি (Kg)</option>
+                                    <option value="লিটার">লিটার (Litre)</option>
+                                    <option value="টি">টি / পিস (Piece)</option>
+                                    <option value="মণ">মণ (Mon)</option>
+                                    <option value="গ্রাম">গ্রাম (Gram)</option>
+                                    <option value="হালি">হালি (Hali)</option>
+                                    <option value="ডজন">ডজন (Dozen)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">মোট আদায়কৃত বা দাবিকৃত মূল্য (টাকা) <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text">৳</span>
+                                    <input type="number" step="0.01" class="form-control fw-bold text-danger" @bind="model.ActualPriceCharged" @bind:after="UpdateCalculatedPreview" />
+                                </div>
+                                <ValidationMessage For="() => model.ActualPriceCharged" class="text-danger small" />
+                            </div>
+
+                            <!-- Live Calculated Unit Price Preview -->
+                            <div class="col-12">
+                                <div class="p-3 rounded-3 d-flex justify-content-between align-items-center" style="background-color: #FEF3C7; border: 1px solid #FDE68A;">
+                                    <div>
+                                        <div class="fw-bold text-dark small">হিসাবকৃত প্রতি একক দর (Calculated Price per Base Unit):</div>
+                                        <div class="small text-secondary">সার্ভারে নর্মালাইজেশনের মাধ্যমে অন্যান্য বাজারের সাথে তুলনা করা হবে</div>
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="h4 fw-bold text-danger mb-0">৳@previewPricePerBaseUnit.ToString("F2")</span>
+                                        <span class="small text-muted">/ @previewBaseUnit</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Description -->
+                            <div class="col-12">
+                                <label class="form-label small text-muted">ঘটনার সংক্ষিপ্ত বিবরণ (ঐচ্ছিক)</label>
+                                <textarea class="form-control" rows="3" placeholder="যেমন: বিক্রেতা ক্যাশ মেমো দিতে অস্বীকার করেছেন, অথবা সরকার নির্ধারিত মূল্যের তোয়াক্কা না করে বেশি দাবি করেছেন..." @bind="model.Description"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 4: Receipt / Evidence Upload -->
+                    <div class="mb-4">
+                        <h5 class="fw-bold text-dark pb-2 border-bottom d-flex align-items-center gap-2">
+                            <i class="bi bi-camera text-info"></i> ৪. ক্যাশ মেমো / রশিদ বা প্রমাণের ছবি (ঐচ্ছিক কিন্তু সহায়ক)
+                        </h5>
+                        <div class="p-3 bg-light rounded-3 mt-2 border">
+                            <label class="form-label small fw-semibold text-secondary">
+                                রশিদ বা প্রমাণপত্রের ছবি আপলোড করুন (.jpg, .jpeg, .png, .webp | সর্বোচ্চ ৫ মেগাবাইট)
+                            </label>
+                            <InputFile OnChange="HandleFileUpload" class="form-control" accept=".jpg,.jpeg,.png,.webp" />
+                            @if (!string.IsNullOrEmpty(uploadStatusMessage))
+                            {
+                                <div class="mt-2 small @(isUploadSuccess ? "text-success fw-bold" : "text-danger")">
+                                    @uploadStatusMessage
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="market-prices" class="btn btn-outline-secondary px-4 rounded-pill">বাতিল</a>
+                        <button type="submit" class="btn btn-warning text-dark fw-bold px-5 rounded-pill shadow-sm" disabled="@isSubmitting">
+                            @if (isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                <span>যাচাই ও দাখিল হচ্ছে...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-send-fill me-1"></i>
+                                <span>অভিযোগ দাখিল করুন</span>
+                            }
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private SubmitConsumerComplaintDto model = new()
+    {
+        QuantityPurchased = 1.0m,
+        ReportedUnit = "কেজি",
+        PurchaseDateTime = DateTime.Now,
+        SellerType = MarketType.Retail
+    };
+
+    private IReadOnlyList<CropDto> availableCrops = new List<CropDto>();
+    private IReadOnlyList<MarketDto> availableMarkets = new List<MarketDto>();
+
+    private decimal previewPricePerBaseUnit = 0m;
+    private string previewBaseUnit = "কেজি";
+
+    private bool isSubmitting = false;
+    private string? errorMessage;
+    private string? uploadStatusMessage;
+    private bool isUploadSuccess = false;
+
+    private ConsumerComplaintDto? submittedComplaint;
+
+    protected override async Task OnInitializedAsync()
+    {
+        availableCrops = await CropService.GetAllCropsAsync();
+        availableMarkets = await PriceService.GetActiveMarketsAsync();
+
+        if (availableCrops.Any())
+        {
+            var preferred = availableCrops.FirstOrDefault(c => c.NameBn.Contains("আলু")) ?? availableCrops.First();
+            model.CropId = preferred.Id;
+        }
+
+        if (CurrentUser.IsAuthenticated)
+        {
+            model.ComplainantName = CurrentUser.FullName ?? string.Empty;
+            model.ComplainantPhone = CurrentUser.Username ?? string.Empty;
+        }
+
+        UpdateCalculatedPreview();
+    }
+
+    private void UpdateCalculatedPreview()
+    {
+        try
+        {
+            if (model.ActualPriceCharged > 0 && model.QuantityPurchased > 0)
+            {
+                var (norm, baseUnit) = KrishiBondhu.Domain.Common.UnitNormalizer.CalculateNormalizedPrice(
+                    model.ActualPriceCharged, model.QuantityPurchased, model.ReportedUnit);
+                previewPricePerBaseUnit = norm;
+                previewBaseUnit = baseUnit;
+            }
+            else
+            {
+                previewPricePerBaseUnit = 0m;
+            }
+        }
+        catch
+        {
+            previewPricePerBaseUnit = 0m;
+        }
+    }
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        uploadStatusMessage = null;
+        isUploadSuccess = false;
+
+        var file = e.File;
+        if (file == null) return;
+
+        // Max 5 MB
+        if (file.Size > 5 * 1024 * 1024)
+        {
+            uploadStatusMessage = "ফাইলের আকার ৫ মেগাবাইটের বেশি হতে পারবে না।";
+            return;
+        }
+
+        var (isValid, validationErr) = FileStorage.ValidateFile(file.Name, file.Size, file.ContentType);
+        if (!isValid)
+        {
+            uploadStatusMessage = validationErr ?? "অসমর্থিত ফাইল ফরম্যাট। শুধুমাত্র ছবি (.jpg, .jpeg, .png, .webp) আপলোড করা যাবে।";
+            return;
+        }
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+            var (storedFileName, relativePath) = await FileStorage.SaveFileAsync(stream, file.Name, file.ContentType, "complaints");
+
+            model.ReceiptEvidencePath = relativePath;
+            model.ReceiptFileName = storedFileName;
+            model.ReceiptFileSizeBytes = file.Size;
+            model.ReceiptContentType = file.ContentType;
+
+            isUploadSuccess = true;
+            uploadStatusMessage = "প্রমাণপত্রের ছবি সফলভাবে আপলোড হয়েছে।";
+        }
+        catch (Exception ex)
+        {
+            uploadStatusMessage = $"ফাইল আপলোডে ত্রুটি: {ex.Message}";
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+
+        try
+        {
+            var userId = CurrentUser.UserId?.ToString();
+            var clientIp = "127.0.0.1"; // Default client IP
+
+            var result = await ComplaintService.SubmitComplaintAsync(model, userId, clientIp);
+            if (result.IsSuccess)
+            {
+                submittedComplaint = result.Value;
+            }
+            else
+            {
+                errorMessage = result.ErrorMessage;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"অভিযোগ দাখিলে অপ্রত্যাশিত সমস্যা: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void ResetForm()
+    {
+        model = new SubmitConsumerComplaintDto
+        {
+            QuantityPurchased = 1.0m,
+            ReportedUnit = "কেজি",
+            PurchaseDateTime = DateTime.Now,
+            SellerType = MarketType.Retail
+        };
+        if (availableCrops.Any()) model.CropId = availableCrops.First().Id;
+        submittedComplaint = null;
+        errorMessage = null;
+        uploadStatusMessage = null;
+        UpdateCalculatedPreview();
+    }
+}

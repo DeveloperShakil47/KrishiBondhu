@@ -1,0 +1,393 @@
+@page "/lots"
+@inject IHarvestLotService LotService
+@inject ICropService CropService
+@inject ICurrentUserService CurrentUser
+@inject ILocalizationService Loc
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>ফসলের লটসমূহ | কৃষিবন্ধু ডিসিশন ইঞ্জিন</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h2 class="fw-bold mb-1">
+            <i class="bi bi-basket text-success me-2"></i>ফসলের লট ও বাজার তালিকা
+        </h2>
+        <p class="text-muted small mb-0">কৃষকদের তালিকাভুক্ত তাজা ফসলের লট অন্বেষণ করুন এবং সরাসরি সেরা অফার দিন</p>
+    </div>
+
+    <div>
+        <button class="btn btn-kb-primary" @onclick="OpenCreateLotModal">
+            <i class="bi bi-plus-lg me-1"></i> নতুন লট যুক্ত করুন
+        </button>
+    </div>
+</div>
+
+<!-- Filters & Search Bar -->
+<div class="kb-card mb-4 p-3">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-4">
+            <div class="input-group">
+                <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control" placeholder="লট নম্বর বা এলাকা দিয়ে খুঁজুন..." @bind="searchTerm" @bind:event="oninput" @bind:after="ApplyFilter" />
+            </div>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select" @bind="selectedCropId" @bind:after="ApplyFilter">
+                <option value="">-- সকল ফসল --</option>
+                @if (crops != null)
+                {
+                    @foreach (var crop in crops)
+                    {
+                        <option value="@crop.Id">@crop.NameBn</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select" @bind="selectedDistrict" @bind:after="ApplyFilter">
+                <option value="">-- সকল জেলা (৬৪টি জেলা) --</option>
+                @foreach (var divisionGroup in BangladeshLocationData.Districts.GroupBy(d => d.DivisionBn))
+                {
+                    <optgroup label="@($"{divisionGroup.Key} বিভাগ ({divisionGroup.First().DivisionEn} Division)")">
+                        @foreach (var dist in divisionGroup.OrderBy(d => d.NameBn))
+                        {
+                            <option value="@dist.DisplayName">@dist.DisplayName</option>
+                        }
+                    </optgroup>
+                }
+            </select>
+        </div>
+        <div class="col-md-2 text-end">
+            <button class="btn btn-outline-secondary w-100" @onclick="ResetFilters">
+                <i class="bi bi-arrow-counterclockwise me-1"></i> রিসেট
+            </button>
+        </div>
+    </div>
+</div>
+
+@if (lots == null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-success" role="status"></div>
+        <p class="mt-2 text-muted">ফসলের লট লোড হচ্ছে...</p>
+    </div>
+}
+else if (!lots.Any())
+{
+    <div class="text-center py-5 kb-card">
+        <i class="bi bi-basket3 fs-1 text-muted d-block mb-3"></i>
+        <h5 class="fw-bold text-dark">কোনো ফসলের লট পাওয়া যায়নি</h5>
+        <p class="text-muted small">অন্য ফিল্টার বা কিওয়ার্ড দিয়ে চেষ্টা করুন অথবা নতুন লট যোগ করুন।</p>
+        <button class="btn btn-kb-primary mt-2" @onclick="OpenCreateLotModal">
+            <i class="bi bi-plus-circle me-1"></i> প্রথম লট যুক্ত করুন
+        </button>
+    </div>
+}
+else
+{
+    <div class="row g-4">
+        @foreach (var lot in lots)
+        {
+            <div class="col-md-6 col-lg-4">
+                <div class="kb-card h-100 d-flex flex-column justify-content-between p-3">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-success-subtle text-success fw-bold px-2 py-1">
+                                @lot.LotNumber
+                            </span>
+                            <span class="kb-badge @GetLotBadgeClass(lot.Status)">
+                                @lot.Status.ToString()
+                            </span>
+                        </div>
+
+                        <h4 class="fw-bold mb-1 text-dark">@lot.CropNameBn</h4>
+                        <div class="text-muted small mb-2">
+                            <i class="bi bi-geo-alt text-danger me-1"></i> @lot.PickupUpazila, @lot.PickupDistrict
+                        </div>
+
+                        <div class="p-2 bg-light rounded-3 my-3">
+                            <div class="d-flex justify-content-between mb-1 small">
+                                <span class="text-muted">পরিমাণ:</span>
+                                <strong>@Loc.FormatWeight(lot.Quantity, lot.Unit)</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1 small">
+                                <span class="text-muted">চাহিদা দর:</span>
+                                <strong class="text-success">৳ @lot.AskingPricePerKg.ToString("N2") /কেজি</strong>
+                            </div>
+                            <div class="d-flex justify-content-between small">
+                                <span class="text-muted">গ্রেড ও মান:</span>
+                                <span class="badge bg-secondary-subtle text-secondary">@lot.Grade</span>
+                            </div>
+                        </div>
+
+                        <p class="text-muted small mb-3">
+                            @(string.IsNullOrWhiteSpace(lot.GradeDescription) ? "বিশুদ্ধ ও শুষ্ক সোনালী মানের ফসল।" : lot.GradeDescription)
+                        </p>
+                    </div>
+
+                    <div class="border-top pt-3 d-flex gap-2">
+                        <a href="lots/@lot.Id/compare" class="btn btn-sm btn-kb-accent flex-grow-1 text-center text-dark">
+                            <i class="bi bi-bar-chart-fill me-1"></i> দর তুলনা (@lot.OffersCount)
+                        </a>
+                        <a href="lots/@lot.Id" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- Create Harvest Lot Modal Dialog -->
+@if (showCreateModal)
+{
+    <div class="kb-modal-backdrop">
+        <div class="kb-modal-content">
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <h4 class="fw-bold mb-0 text-success">
+                    <i class="bi bi-plus-circle-fill me-2"></i>নতুন ফসলের লট যুক্ত করুন
+                </h4>
+                <button type="button" class="btn-close" @onclick="CloseCreateLotModal"></button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(createErrorMessage))
+            {
+                <div class="alert alert-danger py-2 small mb-3">
+                    <i class="bi bi-exclamation-circle me-1"></i> @createErrorMessage
+                </div>
+            }
+
+            <EditForm Model="newLotModel" OnValidSubmit="HandleCreateLot">
+                <DataAnnotationsValidator />
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">ফসলের নাম <span class="text-danger">*</span></label>
+                        <InputSelect @bind-Value="newLotModel.CropId" class="form-select">
+                            <option value="@Guid.Empty">-- ফসল নির্বাচন করুন --</option>
+                            @if (crops != null)
+                            {
+                                @foreach (var c in crops)
+                                {
+                                    <option value="@c.Id">@c.NameBn</option>
+                                }
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => newLotModel.CropId)" class="text-danger small" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">পরিমাণ <span class="text-danger">*</span></label>
+                        <InputNumber @bind-Value="newLotModel.Quantity" class="form-control" placeholder="৫০" />
+                        <ValidationMessage For="@(() => newLotModel.Quantity)" class="text-danger small" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">একক</label>
+                        <InputSelect @bind-Value="newLotModel.Unit" class="form-select">
+                            <option value="@WeightUnit.Mon">মণ (Mon = 40 Kg)</option>
+                            <option value="@WeightUnit.Kg">কেজি (Kg)</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">প্রতি কেজির প্রত্যাশিত দর (৳) <span class="text-danger">*</span></label>
+                        <InputNumber @bind-Value="newLotModel.AskingPricePerKg" class="form-control" placeholder="৩৫.০০" />
+                        <ValidationMessage For="@(() => newLotModel.AskingPricePerKg)" class="text-danger small" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">ফসলের গ্রেড / মান</label>
+                        <InputSelect @bind-Value="newLotModel.Grade" class="form-select">
+                            <option value="@QualityGrade.Premium">প্রিমিয়াম (Premium / A+)</option>
+                            <option value="@QualityGrade.GradeA">গ্রেড এ (Grade A)</option>
+                            <option value="@QualityGrade.GradeB">গ্রেড বি (Grade B)</option>
+                            <option value="@QualityGrade.Standard">সাধারণ (Standard)</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">সংগ্রহের জেলা <span class="text-danger">*</span></label>
+                        <select class="form-select" value="@newLotModel.PickupDistrict" @onchange="OnLotDistrictChanged">
+                            <option value="">-- জেলা নির্বাচন করুন --</option>
+                            @foreach (var divisionGroup in BangladeshLocationData.Districts.GroupBy(d => d.DivisionBn))
+                            {
+                                <optgroup label="@($"{divisionGroup.Key} বিভাগ ({divisionGroup.First().DivisionEn} Division)")">
+                                    @foreach (var dist in divisionGroup.OrderBy(d => d.NameBn))
+                                    {
+                                        <option value="@dist.DisplayName">@dist.DisplayName</option>
+                                    }
+                                </optgroup>
+                            }
+                        </select>
+                        <ValidationMessage For="@(() => newLotModel.PickupDistrict)" class="text-danger small" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">উপজেলা <span class="text-danger">*</span></label>
+                        @if (modalUpazilas != null && modalUpazilas.Count > 0)
+                        {
+                            <select class="form-select" @bind="newLotModel.PickupUpazila">
+                                <option value="">-- উপজেলা নির্বাচন করুন --</option>
+                                @foreach (var upz in modalUpazilas)
+                                {
+                                    <option value="@upz">@upz</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <InputText @bind-Value="newLotModel.PickupUpazila" class="form-control" placeholder="যেমন: শিবগঞ্জ" />
+                        }
+                        <ValidationMessage For="@(() => newLotModel.PickupUpazila)" class="text-danger small" />
+                    </div>
+
+                    <div class="col-md-12">
+                        <label class="form-label">নির্দিষ্ট এলাকা বা খামারের বিবরণ</label>
+                        <InputText @bind-Value="newLotModel.PickupLocationDetails" class="form-control" placeholder="যেমন: মহাস্থান হাট কৃষক শেড সংলগ্ন" />
+                    </div>
+
+                    <div class="col-md-12">
+                        <label class="form-label">মানের বিস্তারিত বিবরণ বা আর্দ্রতা</label>
+                        <InputTextArea @bind-Value="newLotModel.GradeDescription" class="form-control" rows="2" placeholder="যেমন: আর্দ্রতা ১৪% এর কম, শুকনা সোনালী দানা" />
+                    </div>
+                </div>
+
+                <div class="mt-4 d-flex justify-content-end gap-2 border-top pt-3">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseCreateLotModal">বাতিল</button>
+                    <button type="submit" class="btn btn-kb-primary" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>সংরক্ষণ হচ্ছে...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-circle me-1"></i>
+                            <span>লট তালিকাভুক্ত করুন</span>
+                        }
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private List<HarvestLotDto>? lots;
+    private IReadOnlyList<CropDto>? crops;
+    private string searchTerm = string.Empty;
+    private Guid? selectedCropId;
+    private string selectedDistrict = string.Empty;
+
+    private bool showCreateModal;
+    private bool isSubmitting;
+    private string? createErrorMessage;
+    private CreateHarvestLotDto newLotModel = new()
+    {
+        PickupDistrict = "বগুড়া (Bogura)",
+        PickupUpazila = "শিবগঞ্জ (Shibganj)",
+        Quantity = 50,
+        Unit = WeightUnit.Mon,
+        AskingPricePerKg = 35.0m
+    };
+
+    private IReadOnlyList<string> modalUpazilas = Array.Empty<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        crops = await CropService.GetAllCropsAsync();
+        if (crops.Any())
+        {
+            newLotModel.CropId = crops.First().Id;
+        }
+        if (!string.IsNullOrEmpty(newLotModel.PickupDistrict))
+        {
+            modalUpazilas = BangladeshLocationData.GetUpazilasForDistrict(newLotModel.PickupDistrict);
+        }
+        await LoadLots();
+    }
+
+    private void OnLotDistrictChanged(ChangeEventArgs e)
+    {
+        var selected = e.Value?.ToString() ?? "";
+        newLotModel.PickupDistrict = selected;
+        modalUpazilas = BangladeshLocationData.GetUpazilasForDistrict(selected);
+        if (modalUpazilas.Count > 0)
+        {
+            newLotModel.PickupUpazila = modalUpazilas[0];
+        }
+        else
+        {
+            newLotModel.PickupUpazila = "";
+        }
+    }
+
+    private async Task LoadLots()
+    {
+        var result = await LotService.SearchLotsAsync(searchTerm, selectedCropId, selectedDistrict, null, 1, 50);
+        lots = result.Items.ToList();
+    }
+
+    private async Task ApplyFilter()
+    {
+        await LoadLots();
+    }
+
+    private async Task ResetFilters()
+    {
+        searchTerm = string.Empty;
+        selectedCropId = null;
+        selectedDistrict = string.Empty;
+        await LoadLots();
+    }
+
+    private void OpenCreateLotModal()
+    {
+        showCreateModal = true;
+        createErrorMessage = null;
+    }
+
+    private void CloseCreateLotModal()
+    {
+        showCreateModal = false;
+    }
+
+    private async Task HandleCreateLot()
+    {
+        isSubmitting = true;
+        createErrorMessage = null;
+
+        try
+        {
+            var result = await LotService.CreateLotAsync(newLotModel);
+            if (result.Succeeded)
+            {
+                showCreateModal = false;
+                await LoadLots();
+            }
+            else
+            {
+                createErrorMessage = result.Errors.FirstOrDefault() ?? "লট তৈরিতে সমস্যা হয়েছে।";
+            }
+        }
+        catch (Exception ex)
+        {
+            createErrorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private string GetLotBadgeClass(LotStatus status) => status switch
+    {
+        LotStatus.ActiveListed => "kb-badge-success",
+        LotStatus.UnderOffer => "kb-badge-warning",
+        LotStatus.Sold => "kb-badge-neutral",
+        _ => "kb-badge-neutral"
+    };
+}

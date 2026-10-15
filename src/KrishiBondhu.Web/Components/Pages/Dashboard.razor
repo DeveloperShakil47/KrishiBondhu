@@ -1,0 +1,226 @@
+@page "/dashboard"
+@inject ICurrentUserService CurrentUser
+@inject IHarvestLotService LotService
+@inject IOrderLifecycleService OrderService
+@inject IBuyerService BuyerService
+@inject IDisputeService DisputeService
+@inject ILocalizationService Loc
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>ড্যাশবোর্ড | কৃষিবন্ধু ডিসিশন ইঞ্জিন</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h2 class="fw-bold mb-1">
+            স্বাগতম, @(CurrentUser.FullName ?? "ব্যবহারকারী")!
+        </h2>
+        <span class="badge bg-success-subtle text-success px-3 py-1 fs-6">
+            <i class="bi bi-person-badge me-1"></i> ভূমিকা: @(CurrentUser.Role?.ToString() ?? "Guest")
+        </span>
+    </div>
+
+    <div class="d-flex gap-2">
+        <a href="lots" class="btn btn-kb-outline">
+            <i class="bi bi-basket me-1"></i> সকল লট দেখুন
+        </a>
+        @if (CurrentUser.Role == UserRole.Farmer)
+        {
+            <a href="lots" class="btn btn-kb-primary">
+                <i class="bi bi-plus-circle me-1"></i> নতুন ফসলের লট যুক্ত করুন
+            </a>
+        }
+        else if (CurrentUser.Role == UserRole.Buyer)
+        {
+            <a href="demands" class="btn btn-kb-primary">
+                <i class="bi bi-megaphone me-1"></i> ফসলের চাহিদা পোস্ট করুন
+            </a>
+        }
+    </div>
+</div>
+
+<!-- Key Performance Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-6">
+        <div class="kb-stat-card">
+            <div class="kb-stat-icon green">
+                <i class="bi bi-basket2"></i>
+            </div>
+            <div>
+                <div class="kb-stat-value">@myLotsCount</div>
+                <div class="kb-stat-label">ফসলের লটসমূহ</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="kb-stat-card">
+            <div class="kb-stat-icon gold">
+                <i class="bi bi-receipt"></i>
+            </div>
+            <div>
+                <div class="kb-stat-value">@myOrdersCount</div>
+                <div class="kb-stat-label">লেনদেন ও অর্ডার</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="kb-stat-card">
+            <div class="kb-stat-icon blue">
+                <i class="bi bi-cash-stack"></i>
+            </div>
+            <div>
+                <div class="kb-stat-value" style="font-size: 1.3rem;">@Loc.FormatCurrency(totalVerifiedProceeds)</div>
+                <div class="kb-stat-label">যাচাইকৃত প্রাপ্ত অর্থ</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="kb-stat-card">
+            <div class="kb-stat-icon red">
+                <i class="bi bi-hourglass-split"></i>
+            </div>
+            <div>
+                <div class="kb-stat-value" style="font-size: 1.3rem;">@Loc.FormatCurrency(totalOutstandingBalance)</div>
+                <div class="kb-stat-label">বকেয়া পাওনা</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Active Orders & Transactions Timeline Overview -->
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="kb-card">
+            <div class="kb-card-header">
+                <h4 class="kb-card-title">
+                    <i class="bi bi-clock-history text-success"></i> চলমান অর্ডার ও লেনদেন
+                </h4>
+                <a href="orders" class="btn btn-sm btn-outline-secondary">সকল অর্ডার দেখুন</a>
+            </div>
+
+            @if (recentOrders == null)
+            {
+                <div class="text-center py-4">
+                    <div class="spinner-border text-success" role="status"></div>
+                </div>
+            }
+            else if (!recentOrders.Any())
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                    <p class="mb-2">এখনো কোনো সক্রিয় অর্ডার নেই।</p>
+                    <a href="lots" class="btn btn-sm btn-kb-outline">ফসলের লট অন্বেষণ করুন</a>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table kb-table">
+                        <thead>
+                            <tr>
+                                <th>অর্ডার নম্বর</th>
+                                <th>ফসল</th>
+                                <th>পরিমাণ</th>
+                                <th>নিট মূল্য</th>
+                                <th>বকেয়া বাকি</th>
+                                <th>অবস্থা</th>
+                                <th>পদক্ষেপ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var order in recentOrders)
+                            {
+                                <tr>
+                                    <td>
+                                        <a href="orders/@order.Id" class="fw-bold text-success text-decoration-none">
+                                            @order.OrderNumber
+                                        </a>
+                                    </td>
+                                    <td>@order.CropNameBn</td>
+                                    <td>@order.EffectiveQuantityKg.ToString("N0") কেজি</td>
+                                    <td class="fw-bold">@Loc.FormatCurrency(order.NetPayableToFarmer)</td>
+                                    <td class="text-danger fw-bold">@Loc.FormatCurrency(order.OutstandingBalance)</td>
+                                    <td>
+                                        <span class="kb-badge @GetStatusBadgeClass(order.Status)">
+                                            @order.Status.ToString()
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a href="orders/@order.Id" class="btn btn-sm btn-outline-success">
+                                            <i class="bi bi-eye"></i> বিস্তারিত
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Quick Help & Decision Guidelines -->
+    <div class="col-lg-4">
+        <div class="kb-card mb-4">
+            <h5 class="fw-bold text-success mb-3">
+                <i class="bi bi-lightbulb-fill text-warning me-1"></i> কৃষকের সিদ্ধান্ত সহায়তা
+            </h5>
+            <div class="d-flex flex-column gap-3 small">
+                <div class="p-3 bg-light rounded-3 border-start border-success border-4">
+                    <strong>১. দর তুলনা ও কর্তন হিসাব:</strong>
+                    <div class="text-muted mt-1">শুধু প্রতি কেজির দর না দেখে পরিবহন ও কুলি খরচ বাদ দিয়ে নিট বিক্রয়মূল্য বিবেচনা করুন।</div>
+                </div>
+                <div class="p-3 bg-light rounded-3 border-start border-warning border-4">
+                    <strong>২. ডিজিটাল ওজন নিশ্চিতকরণ:</strong>
+                    <div class="text-muted mt-1">বস্তার খালি ওজন (Tare) অবশ্যই বাদ দিতে হবে। উভয় পক্ষ নিশ্চিত করার পরই চূড়ান্ত বিল তৈরি হয়।</div>
+                </div>
+                <div class="p-3 bg-light rounded-3 border-start border-primary border-4">
+                    <strong>৩. নিরাপদ পেমেন্ট যাচাই:</strong>
+                    <div class="text-muted mt-1">বিকাশ বা ব্যাংকে টাকা জমা না পাওয়া পর্যন্ত পেমেন্ট যাচাই করবেন না।</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="kb-card">
+            <h5 class="fw-bold text-dark mb-3">
+                <i class="bi bi-shield-check text-success me-1"></i> অভিযোগ ও সালিশি সহায়তা
+            </h5>
+            <p class="text-muted small mb-3">
+                ওজন নিয়ে গরমিল, পণ্যের মানে সমস্যা বা পেমেন্ট বকেয়া থাকলে সরাসরি বিরোধ উত্থাপন করুন।
+            </p>
+            <a href="disputes" class="btn btn-outline-danger w-100 btn-sm fw-bold">
+                <i class="bi bi-exclamation-octagon me-1"></i> বিরোধ ব্যবস্থাপনা পোর্টাল
+            </a>
+        </div>
+    </div>
+</div>
+
+@code {
+    private int myLotsCount;
+    private int myOrdersCount;
+    private decimal totalVerifiedProceeds;
+    private decimal totalOutstandingBalance;
+    private List<OrderDto>? recentOrders;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var lots = await LotService.GetMyLotsAsync();
+        myLotsCount = lots.Count;
+
+        var ordersPage = await OrderService.GetMyOrdersAsync(1, 10);
+        recentOrders = ordersPage.Items.ToList();
+        myOrdersCount = ordersPage.TotalCount;
+
+        totalVerifiedProceeds = recentOrders.Sum(o => o.VerifiedPaidAmount);
+        totalOutstandingBalance = recentOrders.Sum(o => o.OutstandingBalance);
+    }
+
+    private string GetStatusBadgeClass(OrderStatus status) => status switch
+    {
+        OrderStatus.Completed => "kb-badge-success",
+        OrderStatus.PaymentPending or OrderStatus.PaymentPartiallyReceived => "kb-badge-warning",
+        OrderStatus.AwaitingDelivery or OrderStatus.OfferAccepted => "kb-badge-info",
+        OrderStatus.Disputed => "kb-badge-danger",
+        _ => "kb-badge-neutral"
+    };
+}

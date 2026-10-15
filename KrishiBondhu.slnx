@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/KrishiBondhu.Application/KrishiBondhu.Application.csproj" />
+    <Project Path="src/KrishiBondhu.Domain/KrishiBondhu.Domain.csproj" />
+    <Project Path="src/KrishiBondhu.Infrastructure/KrishiBondhu.Infrastructure.csproj" />
+    <Project Path="src/KrishiBondhu.Web/KrishiBondhu.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/KrishiBondhu.IntegrationTests/KrishiBondhu.IntegrationTests.csproj" />
+    <Project Path="tests/KrishiBondhu.UnitTests/KrishiBondhu.UnitTests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,105 @@
+@page "/orders"
+@inject IOrderLifecycleService OrderService
+@inject ILocalizationService Loc
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>অর্ডার ও লেনদেন | কৃষিবন্ধু ডিসিশন ইঞ্জিন</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h2 class="fw-bold mb-1">
+            <i class="bi bi-receipt text-success me-2"></i>অর্ডার ও লেনদেন ব্যবস্থাপনা
+        </h2>
+        <p class="text-muted small mb-0">চুক্তিভিত্তিক ফসলের ক্রয়-বিক্রয়, ডেলিভারি, ওজন ও পেমেন্ট ট্র্যাকিং</p>
+    </div>
+</div>
+
+@if (orders == null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-success" role="status"></div>
+        <p class="mt-2 text-muted">অর্ডার লোড হচ্ছে...</p>
+    </div>
+}
+else if (!orders.Any())
+{
+    <div class="kb-card text-center py-5">
+        <i class="bi bi-journal-x fs-1 text-muted d-block mb-3"></i>
+        <h5 class="fw-bold">কোনো সক্রিয় অর্ডার নেই</h5>
+        <p class="text-muted small">দরপ্রস্তাব গৃহীত হলে এখানে চুক্তিবদ্ধ অর্ডার তৈরি হবে।</p>
+        <a href="lots" class="btn btn-kb-outline">ফসলের লটসমূহ দেখুন</a>
+    </div>
+}
+else
+{
+    <div class="row g-4">
+        @foreach (var order in orders)
+        {
+            <div class="col-md-6 col-lg-4">
+                <div class="kb-card h-100 d-flex flex-column justify-content-between p-3">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-success-subtle text-success fw-bold fs-6">
+                                @order.OrderNumber
+                            </span>
+                            <span class="kb-badge @GetStatusBadge(order.Status)">
+                                @order.Status.ToString()
+                            </span>
+                        </div>
+
+                        <h4 class="fw-bold text-dark mb-1">@order.CropNameBn</h4>
+                        <div class="text-muted small mb-3">
+                            <div><i class="bi bi-person me-1"></i> কৃষক: <strong>@order.FarmerNameBn</strong></div>
+                            <div><i class="bi bi-shop me-1"></i> ক্রেতা: <strong>@order.BuyerBusinessName</strong></div>
+                        </div>
+
+                        <div class="p-3 bg-light rounded-3 mb-3">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="text-muted">চুক্তি দর:</span>
+                                <strong>৳ @order.AgreedPricePerKg.ToString("N2") /কেজি</strong>
+                            </div>
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="text-muted">নির্ধারিত ওজন:</span>
+                                <strong>@(order.VerifiedNetQuantityKg?.ToString("N0") ?? order.AgreedQuantityKg.ToString("N0")) কেজি</strong>
+                            </div>
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="text-muted">মোট প্রদেয়:</span>
+                                <strong class="text-dark">@Loc.FormatCurrency(order.NetPayableToFarmer)</strong>
+                            </div>
+                            <div class="d-flex justify-content-between small border-top pt-2">
+                                <span class="text-muted">বকেয়া বাকি:</span>
+                                <strong class="text-danger">@Loc.FormatCurrency(order.OutstandingBalance)</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-top pt-3">
+                        <a href="orders/@order.Id" class="btn btn-kb-primary w-100 justify-content-center">
+                            <i class="bi bi-eye-fill me-1"></i> লেনদেনের বিস্তারিত ও ওজন/পেমেন্ট
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<OrderDto>? orders;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await OrderService.GetMyOrdersAsync(1, 50);
+        orders = result.Items.ToList();
+    }
+
+    private string GetStatusBadge(OrderStatus status) => status switch
+    {
+        OrderStatus.Completed => "kb-badge-success",
+        OrderStatus.PaymentPending or OrderStatus.PaymentPartiallyReceived => "kb-badge-warning",
+        OrderStatus.AwaitingDelivery or OrderStatus.OfferAccepted => "kb-badge-info",
+        OrderStatus.Disputed => "kb-badge-danger",
+        _ => "kb-badge-neutral"
+    };
+}

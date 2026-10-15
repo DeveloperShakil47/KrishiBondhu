@@ -1,0 +1,318 @@
+@page "/market-prices/entry"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject IMarketPriceService PriceService
+@inject ICropService CropService
+@inject ICurrentUserService CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>বাজারদর পর্যবেক্ষণ এন্ট্রি — কৃষিবন্ধু</PageTitle>
+
+<div class="container py-4" style="max-width: 850px;">
+    <!-- Breadcrumb & Back -->
+    <div class="mb-3">
+        <a href="market-prices" class="text-decoration-none text-success fw-semibold">
+            <i class="bi bi-arrow-left me-1"></i> দৈনিক বাজারদর ড্যাশবোর্ডে ফিরুন
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm" style="border-radius: 18px;">
+        <div class="card-header bg-white border-0 pt-4 px-4 pb-2">
+            <div class="d-flex align-items-center gap-3">
+                <div class="p-3 bg-success text-white rounded-circle">
+                    <i class="bi bi-pencil-square fs-4"></i>
+                </div>
+                <div>
+                    <h1 class="h4 fw-bold text-dark mb-1">📝 দৈনিক বাজারদর পর্যবেক্ষণ এন্ট্রি</h1>
+                    <p class="text-muted small mb-0">মাঠপর্যায়ের মোকাম বা আড়ত থেকে সংগৃহীত প্রকৃত বেচাকেনার মূল্য তথ্য অন্তর্ভুক্ত করুন</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body p-4">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i> @errorMessage
+                    <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+                </div>
+            }
+
+            @if (isSuccess)
+            {
+                <div class="alert alert-success p-4 rounded-3 text-center my-3">
+                    <i class="bi bi-check-circle-fill text-success fs-1 d-block mb-2"></i>
+                    <h4 class="fw-bold">মূল্য পর্যবেক্ষণ সফলভাবে সংরক্ষিত হয়েছে!</h4>
+                    <p class="text-secondary mb-3">পূর্বের কোনো রেকর্ড মুছে ফেলা হয়নি, অডিট লগ এবং ঐতিহাসিক তথ্য অবিকৃত রয়েছে।</p>
+                    <div class="d-flex justify-content-center gap-2">
+                        <button class="btn btn-outline-success" @onclick="ResetForm">আরেকটি এন্ট্রি করুন</button>
+                        <a href="market-prices" class="btn btn-success">বাজারদর ড্যাশবোর্ডে দেখুন</a>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <EditForm Model="model" OnValidSubmit="HandleSubmit">
+                    <DataAnnotationsValidator />
+
+                    <div class="row g-3">
+                        <!-- Crop Selection -->
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small">পণ্য / ফসল <span class="text-danger">*</span></label>
+                            <select class="form-select border-success" @bind="model.CropId" @bind:after="UpdateNormalizedPreview">
+                                <option value="@Guid.Empty">-- ফসল নির্বাচন করুন --</option>
+                                @foreach (var c in crops)
+                                {
+                                    <option value="@c.Id">@c.IconEmoji @c.NameBn (@c.Category)</option>
+                                }
+                            </select>
+                            <ValidationMessage For="() => model.CropId" class="text-danger small" />
+                        </div>
+
+                        <!-- Market Selection -->
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small">বাজার / আড়ত <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="model.MarketId">
+                                <option value="@Guid.Empty">-- বাজার নির্বাচন করুন --</option>
+                                @foreach (var m in markets)
+                                {
+                                    <option value="@m.Id">@m.NameBn (@m.District, @m.Upazila)</option>
+                                }
+                            </select>
+                            <ValidationMessage For="() => model.MarketId" class="text-danger small" />
+                        </div>
+
+                        <!-- Market Type -->
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small">বাজারের ধরন <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="model.MarketType">
+                                <option value="@MarketType.Wholesale">পাইকারি বাজার (Wholesale)</option>
+                                <option value="@MarketType.Retail">খুচরা বাজার (Retail)</option>
+                            </select>
+                        </div>
+
+                        <!-- Observation Date -->
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small">পর্যবেক্ষণের তারিখ <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" @bind="model.ObservationDate" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                            <ValidationMessage For="() => model.ObservationDate" class="text-danger small" />
+                        </div>
+
+                        <!-- Data Source -->
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small">তথ্যের উৎস <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="model.PriceSourceId">
+                                <option value="@Guid.Empty">-- উৎস নির্বাচন করুন --</option>
+                                @foreach (var s in sources)
+                                {
+                                    <option value="@s.Id">@s.NameBn @(s.IsOfficialAuthority ? "⭐" : "")</option>
+                                }
+                            </select>
+                            <ValidationMessage For="() => model.PriceSourceId" class="text-danger small" />
+                        </div>
+
+                        <!-- Observation Quantity & Unit -->
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small">পর্যবেক্ষিত পরিমাণ <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" class="form-control" @bind="model.ObservedQuantity" @bind:after="UpdateNormalizedPreview" />
+                            <ValidationMessage For="() => model.ObservedQuantity" class="text-danger small" />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small">পরিমাপের একক <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="model.ObservedUnit" @bind:after="UpdateNormalizedPreview">
+                                <option value="কেজি">কেজি (Kg)</option>
+                                <option value="মণ">মণ (Mon = 40 Kg)</option>
+                                <option value="কুইন্টাল">কুইন্টাল (Quintal = 100 Kg)</option>
+                                <option value="গ্রাম">গ্রাম (Gram)</option>
+                                <option value="লিটার">লিটার (Litre)</option>
+                                <option value="টি">টি / পিস (Piece)</option>
+                                <option value="হালি">হালি (Hali = 4 Pieces)</option>
+                                <option value="ডজন">ডজন (Dozen = 12 Pieces)</option>
+                            </select>
+                        </div>
+
+                        <!-- Observed Price -->
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small">পর্যবেক্ষিত দর (টাকা) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">৳</span>
+                                <input type="number" step="0.01" class="form-control fw-bold text-success" @bind="model.ObservedPrice" @bind:after="UpdateNormalizedPreview" />
+                            </div>
+                            <ValidationMessage For="() => model.ObservedPrice" class="text-danger small" />
+                        </div>
+
+                        <!-- Normalized Live Preview Banner -->
+                        <div class="col-12">
+                            <div class="p-3 rounded-3 d-flex align-items-center justify-content-between" style="background-color: #EBF7EE; border: 1px solid #C8E6C9;">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="bi bi-calculator text-success fs-4"></i>
+                                    <div>
+                                        <div class="text-success fw-bold small">সার্ভার-নর্মালাইজড মানসম্মত প্রতি একক দর (Calculated Standard Price):</div>
+                                        <div class="small text-secondary">ভিন্ন ভিন্ন একক (মণ, কেজি) এর মধ্যে তুলনাযোগ্য করতে স্বয়ংক্রিয় হিসাব</div>
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <span class="h4 fw-bold text-success mb-0">৳@previewNormalizedPrice.ToString("F2")</span>
+                                    <span class="small text-muted">/ @previewBaseUnit</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Price Ranges (Min/Max Optional) -->
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">বাজারের সর্বনিম্ন দর (ঐচ্ছিক)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">৳</span>
+                                <input type="number" step="0.01" class="form-control" @bind="model.MinPrice" />
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">বাজারের সর্বোচ্চ দর (ঐচ্ছিক)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">৳</span>
+                                <input type="number" step="0.01" class="form-control" @bind="model.MaxPrice" />
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">পণ্যের মান / গ্রেড</label>
+                            <select class="form-select" @bind="model.Grade">
+                                <option value="@QualityGrade.Premium">প্রিমিয়াম (Premium)</option>
+                                <option value="@QualityGrade.GradeA">গ্রেড এ (Grade A)</option>
+                                <option value="@QualityGrade.Standard">সাধারণ (Standard)</option>
+                            </select>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="col-12">
+                            <label class="form-label small text-muted">অতিরিক্ত মন্তব্য / পর্যবেক্ষণ নোট</label>
+                            <textarea class="form-control" rows="2" placeholder="মোকামের সরবরাহ পরিস্থিতি বা মানের বিশেষ বিবরণ লিখুন..." @bind="model.Notes"></textarea>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="col-12 mt-4 text-end">
+                            <a href="market-prices" class="btn btn-outline-secondary me-2 px-4">বাতিল</a>
+                            <button type="submit" class="btn btn-success fw-bold px-4" disabled="@isSubmitting">
+                                @if (isSubmitting)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                    <span>সংরক্ষণ হচ্ছে...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-check2-circle me-1"></i>
+                                    <span>মূল্য পর্যবেক্ষণ সংরক্ষণ করুন</span>
+                                }
+                            </button>
+                        </div>
+                    </div>
+                </EditForm>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private CreateMarketPriceObservationDto model = new()
+    {
+        ObservationDate = DateTime.Today,
+        ObservedQuantity = 1.0m,
+        ObservedUnit = "কেজি",
+        Grade = QualityGrade.Standard
+    };
+
+    private IReadOnlyList<CropDto> crops = new List<CropDto>();
+    private IReadOnlyList<MarketDto> markets = new List<MarketDto>();
+    private IReadOnlyList<PriceSourceDto> sources = new List<PriceSourceDto>();
+
+    private decimal previewNormalizedPrice = 0m;
+    private string previewBaseUnit = "কেজি";
+
+    private bool isSubmitting = false;
+    private bool isSuccess = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        crops = await CropService.GetAllCropsAsync();
+        markets = await PriceService.GetActiveMarketsAsync();
+        sources = await PriceService.GetActivePriceSourcesAsync();
+
+        if (crops.Any()) model.CropId = crops.First().Id;
+        if (markets.Any()) model.MarketId = markets.First().Id;
+        if (sources.Any()) model.PriceSourceId = sources.First().Id;
+
+        UpdateNormalizedPreview();
+    }
+
+    private void UpdateNormalizedPreview()
+    {
+        try
+        {
+            if (model.ObservedPrice > 0 && model.ObservedQuantity > 0)
+            {
+                var (norm, baseUnit) = KrishiBondhu.Domain.Common.UnitNormalizer.CalculateNormalizedPrice(
+                    model.ObservedPrice, model.ObservedQuantity, model.ObservedUnit);
+                previewNormalizedPrice = norm;
+                previewBaseUnit = baseUnit;
+            }
+            else
+            {
+                previewNormalizedPrice = 0m;
+            }
+        }
+        catch
+        {
+            previewNormalizedPrice = 0m;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+
+        try
+        {
+            var userId = CurrentUser.UserId?.ToString() ?? "SystemOperator";
+            var result = await PriceService.RecordObservationAsync(model, userId);
+
+            if (result.IsSuccess)
+            {
+                isSuccess = true;
+            }
+            else
+            {
+                errorMessage = result.ErrorMessage;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"ত্রুটি ঘটেছে: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void ResetForm()
+    {
+        model = new CreateMarketPriceObservationDto
+        {
+            ObservationDate = DateTime.Today,
+            ObservedQuantity = 1.0m,
+            ObservedUnit = "কেজি",
+            Grade = QualityGrade.Standard
+        };
+        if (crops.Any()) model.CropId = crops.First().Id;
+        if (markets.Any()) model.MarketId = markets.First().Id;
+        if (sources.Any()) model.PriceSourceId = sources.First().Id;
+
+        UpdateNormalizedPreview();
+        isSuccess = false;
+        errorMessage = null;
+    }
+}

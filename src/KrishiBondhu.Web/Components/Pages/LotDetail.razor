@@ -1,0 +1,252 @@
+@page "/lots/{LotId:guid}"
+@inject IHarvestLotService LotService
+@inject IOfferComparisonService OfferService
+@inject ICurrentUserService CurrentUser
+@inject ILocalizationService Loc
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>লট বিস্তারিত | কৃষিবন্ধু ডিসিশন ইঞ্জিন</PageTitle>
+
+@if (lot == null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-success" role="status"></div>
+        <p class="mt-2 text-muted">লটের বিবরণ লোড হচ্ছে...</p>
+    </div>
+}
+else
+{
+    <div class="mb-3">
+        <a href="lots" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> লট তালিকায় ফিরুন
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <!-- Lot Details Column -->
+        <div class="col-lg-7">
+            <div class="kb-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="badge bg-success-subtle text-success fs-6 fw-bold">
+                        @lot.LotNumber
+                    </span>
+                    <span class="kb-badge kb-badge-info">
+                        @lot.Status.ToString()
+                    </span>
+                </div>
+
+                <h2 class="fw-bold text-dark mb-1">@lot.CropNameBn</h2>
+                <div class="text-muted mb-3">
+                    <i class="bi bi-tag me-1"></i> বিভাগ: @lot.CropCategory
+                </div>
+
+                <div class="row g-3 p-3 bg-light rounded-3 mb-4">
+                    <div class="col-6">
+                        <span class="text-muted small d-block">মোট পরিমাণ:</span>
+                        <h4 class="fw-bold mb-0">@Loc.FormatWeight(lot.Quantity, lot.Unit)</h4>
+                        <span class="text-muted small">(@lot.QuantityInKg.ToString("N0") কেজি)</span>
+                    </div>
+                    <div class="col-6">
+                        <span class="text-muted small d-block">চাহিদা দর:</span>
+                        <h4 class="fw-bold text-success mb-0">৳ @lot.AskingPricePerKg.ToString("N2") /কেজি</h4>
+                        <span class="text-muted small">মোট প্রত্যাশিত: ৳ @((lot.TotalExpectedGrossValue ?? 0).ToString("N2"))</span>
+                    </div>
+                    <div class="col-6 border-top pt-2">
+                        <span class="text-muted small d-block">গুণমান / গ্রেড:</span>
+                        <span class="badge bg-primary-subtle text-primary fw-bold">@lot.Grade</span>
+                    </div>
+                    <div class="col-6 border-top pt-2">
+                        <span class="text-muted small d-block">সংগ্রহের স্থান:</span>
+                        <strong class="text-dark">@lot.PickupUpazila, @lot.PickupDistrict</strong>
+                    </div>
+                </div>
+
+                <h5 class="fw-bold mb-2">মানের বিবরণ</h5>
+                <p class="text-muted mb-4">
+                    @(string.IsNullOrWhiteSpace(lot.GradeDescription) ? "বিশুদ্ধ ও শুষ্ক সোনালী মানের ফসল।" : lot.GradeDescription)
+                </p>
+
+                <div class="border-top pt-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="text-muted small d-block">লট তৈরি:</span>
+                        <span class="small fw-semibold">@lot.CreatedAtUtc.ToString("dd MMM yyyy")</span>
+                    </div>
+                    <a href="lots/@lot.Id/compare" class="btn btn-kb-accent text-dark">
+                        <i class="bi bi-bar-chart-fill me-1"></i> দরপ্রস্তাব তুলনা ও ক্যালকুলেটর (@lot.OffersCount)
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit Offer or Actions Column -->
+        <div class="col-lg-5">
+            <div class="kb-card">
+                <h4 class="kb-card-title mb-3">
+                    <i class="bi bi-send-fill text-success"></i> দরপ্রস্তাব পেশ করুন
+                </h4>
+                <p class="text-muted small mb-3">
+                    ব্যবসায়ী বা আড়তদার হিসেবে এই লটের উপর আপনার ক্রয়মূল্য এবং খরচ প্রস্তাব করুন
+                </p>
+
+                @if (!string.IsNullOrEmpty(offerSuccessMessage))
+                {
+                    <div class="alert alert-success py-2 small mb-3">
+                        <i class="bi bi-check-circle me-1"></i> @offerSuccessMessage
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(offerErrorMessage))
+                {
+                    <div class="alert alert-danger py-2 small mb-3">
+                        <i class="bi bi-exclamation-triangle me-1"></i> @offerErrorMessage
+                    </div>
+                }
+
+                <EditForm Model="offerModel" OnValidSubmit="HandleSubmitOffer">
+                    <DataAnnotationsValidator />
+
+                    <div class="mb-3">
+                        <label class="form-label">প্রস্তাবিত দর (প্রতি কেজি ৳) <span class="text-danger">*</span></label>
+                        <InputNumber @bind-Value="offerModel.OfferedPricePerKg" class="form-control" />
+                        <ValidationMessage For="@(() => offerModel.OfferedPricePerKg)" class="text-danger small" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">ক্রয়কৃত পরিমাণ (কেজি) <span class="text-danger">*</span></label>
+                        <InputNumber @bind-Value="offerModel.OfferedQuantityKg" class="form-control" />
+                        <ValidationMessage For="@(() => offerModel.OfferedQuantityKg)" class="text-danger small" />
+                    </div>
+
+                    <h6 class="fw-bold mt-4 mb-2 text-secondary">বিক্রেতার ওপর প্রযোজ্য খরচ কর্তন (৳)</h6>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small">পরিবহন খরচ</label>
+                            <InputNumber @bind-Value="offerModel.TransportCostDeduction" class="form-control form-control-sm" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">ওজন ও কুলি খরচ</label>
+                            <InputNumber @bind-Value="offerModel.WeighingAndLaborCostDeduction" class="form-control form-control-sm" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">প্যাকেজিং খরচ</label>
+                            <InputNumber @bind-Value="offerModel.PackagingCostDeduction" class="form-control form-control-sm" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">অন্যান্য কর্তন</label>
+                            <InputNumber @bind-Value="offerModel.OtherDeductions" class="form-control form-control-sm" />
+                        </div>
+                    </div>
+
+                    <!-- Live Calculation Preview -->
+                    <div class="kb-calc-box mb-3 p-3">
+                        <div class="kb-calc-row">
+                            <span>মোট বিক্রয় মূল্য (Gross):</span>
+                            <strong>৳ @GrossValue.ToString("N2")</strong>
+                        </div>
+                        <div class="kb-calc-row deduction">
+                            <span>মোট কর্তনসমূহ:</span>
+                            <span>- ৳ @TotalDeductions.ToString("N2")</span>
+                        </div>
+                        <div class="kb-calc-row total">
+                            <span>আনুমানিক নিট প্রাপ্তি:</span>
+                            <span class="text-success">৳ @EstimatedNet.ToString("N2")</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">ডেলিভারি শর্তাবলী</label>
+                        <InputText @bind-Value="offerModel.DeliveryTerms" class="form-control" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">পেমেন্ট শর্তাবলী</label>
+                        <InputText @bind-Value="offerModel.PaymentTerms" class="form-control" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">মন্তব্য (ঐচ্ছিক)</label>
+                        <InputTextArea @bind-Value="offerModel.Remarks" class="form-control" rows="2" />
+                    </div>
+
+                    <button type="submit" class="btn btn-kb-primary w-100 justify-content-center py-2" disabled="@isSubmittingOffer">
+                        @if (isSubmittingOffer)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>অফার পাঠানো হচ্ছে...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-send-check me-1"></i>
+                            <span>দরপ্রস্তাব জমা দিন</span>
+                        }
+                    </button>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid LotId { get; set; }
+
+    private HarvestLotDto? lot;
+    private CreateBuyerOfferDto offerModel = new();
+    private bool isSubmittingOffer;
+    private string? offerSuccessMessage;
+    private string? offerErrorMessage;
+
+    private decimal GrossValue => Math.Round(offerModel.OfferedPricePerKg * offerModel.OfferedQuantityKg, 2);
+    private decimal TotalDeductions => Math.Round(offerModel.TransportCostDeduction + offerModel.WeighingAndLaborCostDeduction + offerModel.PackagingCostDeduction + offerModel.OtherDeductions + (GrossValue * 0.005m), 2);
+    private decimal EstimatedNet => Math.Max(0, Math.Round(GrossValue - TotalDeductions, 2));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLot();
+    }
+
+    private async Task LoadLot()
+    {
+        lot = await LotService.GetLotByIdAsync(LotId);
+        if (lot != null)
+        {
+            offerModel.HarvestLotId = lot.Id;
+            offerModel.OfferedPricePerKg = lot.AskingPricePerKg;
+            offerModel.OfferedQuantityKg = lot.QuantityInKg;
+            offerModel.TransportCostDeduction = 1200;
+            offerModel.WeighingAndLaborCostDeduction = 500;
+            offerModel.PackagingCostDeduction = 600;
+        }
+    }
+
+    private async Task HandleSubmitOffer()
+    {
+        isSubmittingOffer = true;
+        offerSuccessMessage = null;
+        offerErrorMessage = null;
+
+        try
+        {
+            var result = await OfferService.SubmitOfferAsync(offerModel);
+            if (result.Succeeded)
+            {
+                offerSuccessMessage = "আপনার দরপ্রস্তাবটি সফলভাবে বিক্রেতার কাছে পাঠানো হয়েছে!";
+                await LoadLot();
+            }
+            else
+            {
+                offerErrorMessage = result.Errors.FirstOrDefault() ?? "দরপ্রস্তাব পাঠাতে ত্রুটি হয়েছে।";
+            }
+        }
+        catch (Exception ex)
+        {
+            offerErrorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmittingOffer = false;
+        }
+    }
+}

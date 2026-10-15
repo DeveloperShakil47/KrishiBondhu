@@ -1,0 +1,318 @@
+@page "/demands"
+@inject IBuyerService BuyerService
+@inject ICropService CropService
+@inject ICurrentUserService CurrentUser
+@inject ILocalizationService Loc
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>ক্রেতার চাহিদা ও ক্রয় বিজ্ঞপ্তি | কৃষিবন্ধু</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h2 class="fw-bold mb-1">
+            <i class="bi bi-megaphone-fill text-warning me-2"></i>ক্রেতার চাহিদা ও ক্রয় বিজ্ঞপ্তি
+        </h2>
+        <p class="text-muted small mb-0">পাইকারি আড়তদার, রাইস মিল ও খাদ্য প্রক্রিয়াজাতকারী প্রতিষ্ঠানের চাহিদা তালিকা</p>
+    </div>
+
+    @if (CurrentUser.Role == UserRole.Buyer || CurrentUser.Role == UserRole.Administrator)
+    {
+        <div>
+            <button class="btn btn-kb-primary" @onclick="OpenCreateDemandModal">
+                <i class="bi bi-plus-lg me-1"></i> নতুন চাহিদা পোস্ট করুন
+            </button>
+        </div>
+    }
+</div>
+
+@if (demands == null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-success" role="status"></div>
+        <p class="mt-2 text-muted">চাহিদা লোড হচ্ছে...</p>
+    </div>
+}
+else if (!demands.Any())
+{
+    <div class="kb-card text-center py-5">
+        <i class="bi bi-journal-check fs-1 text-muted d-block mb-3"></i>
+        <h5 class="fw-bold">বর্তমানে কোনো উন্মুক্ত চাহিদা নেই</h5>
+        <p class="text-muted small">ব্যবসায়ী হিসেবে প্রথম ফসলের চাহিদা প্রকাশ করতে পারেন।</p>
+        <button class="btn btn-kb-primary" @onclick="OpenCreateDemandModal">
+            <i class="bi bi-plus-circle me-1"></i> চাহিদা তৈরি করুন
+        </button>
+    </div>
+}
+else
+{
+    <div class="row g-4">
+        @foreach (var demand in demands)
+        {
+            <div class="col-md-6 col-lg-4">
+                <div class="kb-card h-100 d-flex flex-column justify-content-between p-3">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-warning text-dark fw-bold">
+                                @demand.CropNameBn
+                            </span>
+                            <span class="badge bg-secondary-subtle text-secondary small">
+                                ডেলিভারি: @demand.TargetDeliveryDate.ToString("dd MMM yyyy")
+                            </span>
+                        </div>
+
+                        <h5 class="fw-bold text-dark mb-1">@demand.DemandTitle</h5>
+                        <div class="text-muted small mb-3">
+                            <i class="bi bi-shop me-1"></i> <strong>@demand.BuyerBusinessName</strong>
+                        </div>
+
+                        <div class="p-3 bg-light rounded-3 mb-3">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="text-muted">প্রয়োজনীয় পরিমাণ:</span>
+                                <strong>@demand.RequiredQuantityKg.ToString("N0") কেজি</strong>
+                            </div>
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="text-muted">প্রত্যাশিত দর:</span>
+                                <strong class="text-success">৳ @demand.TargetPricePerKg.ToString("N2") /কেজি</strong>
+                            </div>
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="text-muted">কাঙ্ক্ষিত গ্রেড:</span>
+                                <span class="badge bg-primary-subtle text-primary">@demand.ExpectedGrade</span>
+                            </div>
+                            <div class="d-flex justify-content-between small border-top pt-2">
+                                <span class="text-muted">ডেলিভারি এলাকা:</span>
+                                <span>@demand.DeliveryUpazila, @demand.DeliveryDistrict</span>
+                            </div>
+                        </div>
+
+                        <p class="text-muted small mb-3">
+                            @(string.IsNullOrWhiteSpace(demand.QualitySpecifications) ? "মানসম্পন্ন শুকনো ফসল গ্রহণযোগ্য।" : demand.QualitySpecifications)
+                        </p>
+                    </div>
+
+                    <div class="border-top pt-3">
+                        <a href="lots" class="btn btn-kb-outline w-100 justify-content-center">
+                            <i class="bi bi-basket me-1"></i> এই ফসলের লট খুঁজুন
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- Create Demand Modal Dialog -->
+@if (showCreateDemandModal)
+{
+    <div class="kb-modal-backdrop">
+        <div class="kb-modal-content">
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <h4 class="fw-bold mb-0 text-success">
+                    <i class="bi bi-megaphone me-2"></i>নতুন ফসলের চাহিদা পোস্ট করুন
+                </h4>
+                <button type="button" class="btn-close" @onclick="@(() => showCreateDemandModal = false)"></button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(createErrorMessage))
+            {
+                <div class="alert alert-danger py-2 small mb-3">@createErrorMessage</div>
+            }
+
+            <EditForm Model="demandModel" OnValidSubmit="HandleCreateDemand">
+                <DataAnnotationsValidator />
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">ফসলের ধরন <span class="text-danger">*</span></label>
+                        <InputSelect @bind-Value="demandModel.CropId" class="form-select">
+                            <option value="@Guid.Empty">-- ফসল নির্বাচন করুন --</option>
+                            @if (crops != null)
+                            {
+                                @foreach (var c in crops)
+                                {
+                                    <option value="@c.Id">@c.NameBn</option>
+                                }
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => demandModel.CropId)" class="text-danger small" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">চাহিদার শিরোনাম <span class="text-danger">*</span></label>
+                        <InputText @bind-Value="demandModel.DemandTitle" class="form-control" placeholder="যেমন: ৫,০০০ কেজি ব্রি-২৮ ধান প্রয়োজন" />
+                        <ValidationMessage For="@(() => demandModel.DemandTitle)" class="text-danger small" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">প্রয়োজনীয় পরিমাণ (কেজি) <span class="text-danger">*</span></label>
+                        <InputNumber @bind-Value="demandModel.RequiredQuantityKg" class="form-control" />
+                        <ValidationMessage For="@(() => demandModel.RequiredQuantityKg)" class="text-danger small" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">আকাঙ্ক্ষিত ক্রয়মূল্য (৳ /কেজি) <span class="text-danger">*</span></label>
+                        <InputNumber @bind-Value="demandModel.TargetPricePerKg" class="form-control" />
+                        <ValidationMessage For="@(() => demandModel.TargetPricePerKg)" class="text-danger small" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">কাঙ্ক্ষিত গ্রেড</label>
+                        <InputSelect @bind-Value="demandModel.ExpectedGrade" class="form-select">
+                            <option value="@QualityGrade.Premium">প্রিমিয়াম (Premium)</option>
+                            <option value="@QualityGrade.GradeA">গ্রেড এ (Grade A)</option>
+                            <option value="@QualityGrade.GradeB">গ্রেড বি (Grade B)</option>
+                            <option value="@QualityGrade.Standard">সাধারণ (Standard)</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">ডেলিভারির শেষ তারিখ</label>
+                        <InputDate @bind-Value="demandModel.TargetDeliveryDate" class="form-control" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">ডেলিভারি জেলা <span class="text-danger">*</span></label>
+                        <select class="form-select" value="@demandModel.DeliveryDistrict" @onchange="OnDemandDistrictChanged">
+                            <option value="">-- জেলা নির্বাচন করুন --</option>
+                            @foreach (var divisionGroup in BangladeshLocationData.Districts.GroupBy(d => d.DivisionBn))
+                            {
+                                <optgroup label="@($"{divisionGroup.Key} বিভাগ ({divisionGroup.First().DivisionEn} Division)")">
+                                    @foreach (var dist in divisionGroup.OrderBy(d => d.NameBn))
+                                    {
+                                        <option value="@dist.DisplayName">@dist.DisplayName</option>
+                                    }
+                                </optgroup>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">ডেলিভারি উপজেলা <span class="text-danger">*</span></label>
+                        @if (demandUpazilas != null && demandUpazilas.Count > 0)
+                        {
+                            <select class="form-select" @bind="demandModel.DeliveryUpazila">
+                                <option value="">-- উপজেলা নির্বাচন করুন --</option>
+                                @foreach (var upz in demandUpazilas)
+                                {
+                                    <option value="@upz">@upz</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <InputText @bind-Value="demandModel.DeliveryUpazila" class="form-control" placeholder="যেমন: বগুড়া সদর" />
+                        }
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">মানের বিশেষ শর্তাবলী বা আর্দ্রতার মাত্রা</label>
+                        <InputTextArea @bind-Value="demandModel.QualitySpecifications" class="form-control" rows="2" placeholder="আর্দ্রতা ১৪% নিচে ও চকচকে দানা" />
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2 border-top pt-3 mt-4">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="@(() => showCreateDemandModal = false)">বাতিল</button>
+                    <button type="submit" class="btn btn-kb-primary" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>পোস্ট হচ্ছে...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-send-check me-1"></i>
+                            <span>বিজ্ঞপ্তি প্রকাশ করুন</span>
+                        }
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private List<BuyerDemandDto>? demands;
+    private IReadOnlyList<CropDto>? crops;
+
+    private bool showCreateDemandModal;
+    private bool isSubmitting;
+    private string? createErrorMessage;
+    private CreateBuyerDemandDto demandModel = new()
+    {
+        RequiredQuantityKg = 2000,
+        TargetPricePerKg = 35.0m,
+        DeliveryDistrict = "বগুড়া (Bogura)",
+        DeliveryUpazila = "বগুড়া সদর"
+    };
+
+    private IReadOnlyList<string> demandUpazilas = Array.Empty<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        crops = await CropService.GetAllCropsAsync();
+        if (crops.Any())
+        {
+            demandModel.CropId = crops.First().Id;
+            demandModel.DemandTitle = $"{crops.First().NameBn} জরুরি ক্রয় বিজ্ঞপ্তি";
+        }
+        if (!string.IsNullOrEmpty(demandModel.DeliveryDistrict))
+        {
+            demandUpazilas = BangladeshLocationData.GetUpazilasForDistrict(demandModel.DeliveryDistrict);
+        }
+        await LoadDemands();
+    }
+
+    private void OnDemandDistrictChanged(ChangeEventArgs e)
+    {
+        var selected = e.Value?.ToString() ?? "";
+        demandModel.DeliveryDistrict = selected;
+        demandUpazilas = BangladeshLocationData.GetUpazilasForDistrict(selected);
+        if (demandUpazilas.Count > 0)
+        {
+            demandModel.DeliveryUpazila = demandUpazilas[0];
+        }
+        else
+        {
+            demandModel.DeliveryUpazila = "";
+        }
+    }
+
+    private async Task LoadDemands()
+    {
+        var result = await BuyerService.GetDemandsAsync(1, 50);
+        demands = result.Items.ToList();
+    }
+
+    private void OpenCreateDemandModal()
+    {
+        showCreateDemandModal = true;
+        createErrorMessage = null;
+    }
+
+    private async Task HandleCreateDemand()
+    {
+        isSubmitting = true;
+        createErrorMessage = null;
+        try
+        {
+            var result = await BuyerService.CreateDemandAsync(demandModel);
+            if (result.Succeeded)
+            {
+                showCreateDemandModal = false;
+                await LoadDemands();
+            }
+            else
+            {
+                createErrorMessage = result.Errors.FirstOrDefault() ?? "চাহিদা তৈরি ব্যর্থ হয়েছে।";
+            }
+        }
+        catch (Exception ex)
+        {
+            createErrorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

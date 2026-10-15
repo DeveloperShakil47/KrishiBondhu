@@ -1,0 +1,16 @@
+@page "/logout"
+@inject IAuthService AuthService
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<div class="text-center py-5">
+    <div class="spinner-border text-success mb-3" role="status"></div>
+    <h4>লগআউট হচ্ছে...</h4>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Nav.NavigateTo("/api/auth/sign-out", forceLoad: true);
+    }
+}
